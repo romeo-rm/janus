@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACC | Adversary Emulation Engine</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #080C12;
+      --surface:  #0F1923;
+      --surface2: #162030;
+      --border:   #1E3A5F;
+      --text:     #C8DBF0;
+      --dim:      #4A6A8A;
+      --accent:   #3B82F6;
+      --ok:       #10B981;
+      --bad:      #EF4444;
+      --warn:     #F59E0B;
+      --mono: 'JetBrains Mono', 'Courier New', monospace;
+      --sans: Inter, -apple-system, sans-serif;
+    }
+
+    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; }
+
+    /* ── Header ─────────────────────────────────────────────────────── */
+    header {
+      display: flex; align-items: center; gap: 20px;
+      padding: 11px 24px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0; height: 48px;
+    }
+    .logo  { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .18em; color: var(--accent); }
+    .title { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; color: var(--text); text-transform: uppercase; }
+    .indicators { display: flex; gap: 18px; margin-left: auto; align-items: center; }
+    .ind { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--dim); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); transition: background .4s, box-shadow .4s; }
+    .dot.ok  { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+    .dot.bad { background: var(--bad); }
+    .dot.blink { animation: blink 1.4s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+    .badge { font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:3px 10px; border-radius:3px; border:1px solid currentColor; }
+    .badge.idle     { color:var(--dim); }
+    .badge.running  { color:var(--warn); animation:blink 1s ease-in-out infinite; }
+    .badge.complete { color:var(--ok); }
+
+    /* ── Layout ─────────────────────────────────────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      grid-template-rows: 1fr 48px;
+      height: calc(100vh - 48px);
+      overflow: hidden;
+    }
+
+    /* ── Kill chain panel ───────────────────────────────────────────── */
+    .chain-panel {
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 22px 18px; overflow-y: auto;
+    }
+    .sect-label {
+      font-family: var(--mono); font-size: 10px; font-weight: 700;
+      letter-spacing: .18em; text-transform: uppercase; color: var(--dim); margin-bottom: 18px;
+    }
+
+    /* Pipeline */
+    .pipeline { display: flex; flex-direction: column; }
+    .step-row { display: flex; align-items: stretch; }
+    .step-pipe { display: flex; flex-direction: column; align-items: center; width: 26px; flex-shrink: 0; }
+
+    .node {
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 2px solid var(--border); background: var(--surface);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--dim);
+      transition: all .35s ease; flex-shrink: 0; position: relative; z-index: 1;
+    }
+    .node.running  { border-color:var(--warn); color:var(--warn); background:rgba(245,158,11,.1); box-shadow:0 0 14px rgba(245,158,11,.5); animation:node-glow 1s ease-in-out infinite; }
+    .node.detected { border-color:var(--ok);   color:var(--ok);   background:rgba(16,185,129,.1); box-shadow:0 0 8px rgba(16,185,129,.3); }
+    .node.missed   { border-color:var(--bad);  color:var(--bad);  background:rgba(239,68,68,.1); }
+    @keyframes node-glow { 0%,100%{box-shadow:0 0 14px rgba(245,158,11,.5)} 50%{box-shadow:0 0 22px rgba(245,158,11,.85)} }
+
+    .vline {
+      width: 2px; flex: 1; min-height: 18px; background: var(--border);
+      margin: 0 auto; position: relative; overflow: hidden;
+    }
+    .vline.flow::after {
+      content: ''; position: absolute; top: -100%; left: 0; width: 100%; height: 60%;
+      background: linear-gradient(to bottom, transparent, var(--accent), transparent);
+      animation: flow 1.1s linear infinite;
+    }
+    @keyframes flow { 0%{top:-100%} 100%{top:200%} }
+
+    .step-info { flex:1; padding: 2px 0 2px 13px; min-height: 50px; display:flex; flex-direction:column; justify-content:center; }
+    .step-tid  { font-family:var(--mono); font-size:10px; font-weight:700; color:var(--dim); letter-spacing:.05em; transition:color .3s; }
+    .step-tid.running  { color:var(--warn); }
+    .step-tid.detected { color:var(--ok); }
+    .step-tid.missed   { color:var(--bad); }
+    .step-name  { font-size:13px; font-weight:500; color:var(--text); margin-top:2px; }
+    .step-tac   { font-family:var(--mono); font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; margin-top:1px; }
+    .step-st    { font-family:var(--mono); font-size:10px; margin-top:3px; }
+    .step-st.running  { color:var(--warn); }
+    .step-st.detected { color:var(--ok); }
+    .step-st.missed   { color:var(--bad); }
+    .step-alt   { font-family:var(--mono); font-size:9px; color:var(--dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+    .step-row:last-child .vline { display:none; }
+
+    /* ── Right panel ────────────────────────────────────────────────── */
+    .right-panel { display:grid; grid-template-rows:auto 1fr; overflow:hidden; }
+
+    .metrics { display:grid; grid-template-columns:200px 1fr; border-bottom:1px solid var(--border); }
+
+    /* Score */
+    .score-box { padding:24px 28px; border-right:1px solid var(--border); display:flex; flex-direction:column; justify-content:center; }
+    .score-lbl { font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); margin-bottom:4px; }
+    .score-num { font-family:var(--mono); font-size:80px; font-weight:700; line-height:1; color:var(--text); letter-spacing:-.02em; transition:color .5s; }
+    .score-num.full { color:var(--ok); }
+    .score-num.part { color:var(--warn); }
+    .score-num.zero { color:var(--dim); }
+    .score-sub { font-family:var(--mono); font-size:11px; color:var(--dim); margin-top:4px; }
+
+    /* Progress + tactics */
+    .meta-box { padding:20px 24px; display:flex; flex-direction:column; gap:14px; justify-content:center; }
+    .track { height:5px; background:var(--surface2); border-radius:3px; overflow:hidden; }
+    .fill  { height:100%; background:linear-gradient(to right, var(--accent), var(--ok)); border-radius:3px; width:0%; transition:width .6s ease; }
+    .tactics-row { display:flex; gap:6px; flex-wrap:wrap; }
+    .tc {
+      font-family:var(--mono); font-size:9px; font-weight:500; letter-spacing:.08em; text-transform:uppercase;
+      padding:4px 9px; border-radius:2px; border:1px solid var(--border); color:var(--dim); background:var(--surface);
+      transition:all .4s ease; white-space:nowrap;
+    }
+    .tc.ok   { border-color:var(--ok);  color:var(--ok);  background:rgba(16,185,129,.07); }
+    .tc.bad  { border-color:var(--bad); color:var(--bad); background:rgba(239,68,68,.07); }
+    .tc.mix  { border-color:var(--warn);color:var(--warn);background:rgba(245,158,11,.07); }
+
+    /* Lower right */
+    .lower { display:grid; grid-template-columns:1fr 1fr; overflow:hidden; }
+
+    .sigma-panel { border-right:1px solid var(--border); display:flex; flex-direction:column; padding:18px; overflow-y:auto; }
+    .sigma-card  { background:var(--surface2); border:1px solid var(--border); border-left:3px solid var(--bad); border-radius:3px; padding:11px; margin-bottom:9px; }
+    .sigma-tid   { font-family:var(--mono); font-size:10px; font-weight:700; color:var(--bad); margin-bottom:3px; }
+    .sigma-desc  { font-size:12px; color:var(--dim); line-height:1.5; }
+    .sigma-tag   { display:inline-block; font-family:var(--mono); font-size:9px; padding:2px 6px; border-radius:2px; background:rgba(239,68,68,.12); color:var(--bad); margin-top:6px; }
+    .empty       { font-family:var(--mono); font-size:11px; color:var(--dim); text-align:center; padding:36px 20px; }
+
+    .log-panel { display:flex; flex-direction:column; padding:18px; overflow:hidden; }
+    .log-feed  { flex:1; overflow-y:auto; font-family:var(--mono); font-size:11px; line-height:1.75; color:var(--dim); }
+    .ll        { padding:0; }
+    .ll.ok     { color:var(--ok); }
+    .ll.bad    { color:var(--bad); }
+    .ll.warn   { color:var(--warn); }
+    .ll.accent { color:var(--accent); }
+
+    /* ── Bottom bar ─────────────────────────────────────────────────── */
+    .bottom { grid-column:1/-1; border-top:1px solid var(--border); background:var(--surface); display:flex; align-items:center; gap:10px; padding:0 20px; }
+    .btn { font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:7px 18px; border-radius:3px; border:none; cursor:pointer; transition:all .2s; }
+    .btn-run   { background:var(--accent); color:#fff; }
+    .btn-run:hover:not(:disabled) { background:#2563EB; }
+    .btn-ghost { background:transparent; color:var(--dim); border:1px solid var(--border); }
+    .btn-ghost:hover:not(:disabled) { border-color:var(--text); color:var(--text); }
+    .btn:active:not(:disabled) { transform:scale(.97); }
+    .btn:disabled { opacity:.4; cursor:not-allowed; }
+    .status-txt { margin-left:auto; font-family:var(--mono); font-size:10px; color:var(--dim); }
+    .status-txt b { color:var(--text); font-weight:500; }
+
+    /* Report modal */
+    .modal-overlay {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);
+      z-index:100; align-items:center; justify-content:center;
+    }
+    .modal-overlay.open { display:flex; }
+    .modal {
+      background:var(--surface); border:1px solid var(--border); border-radius:6px;
+      width:90vw; max-width:900px; max-height:88vh;
+      display:flex; flex-direction:column; overflow:hidden;
+    }
+    .modal-header {
+      display:flex; align-items:center; padding:16px 20px;
+      border-bottom:1px solid var(--border); flex-shrink:0;
+    }
+    .modal-title { font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text); }
+    .modal-close { margin-left:auto; background:none; border:none; color:var(--dim); font-size:18px; cursor:pointer; padding:0 4px; }
+    .modal-close:hover { color:var(--text); }
+    .modal-body { flex:1; overflow-y:auto; padding:24px; }
+    .report-content {
+      font-family:var(--sans); font-size:13px; line-height:1.75; color:var(--text);
+      white-space:pre-wrap; word-break:break-word;
+    }
+    .report-content h1, .report-content h2 { font-family:var(--mono); color:var(--accent); margin:20px 0 8px; font-size:13px; letter-spacing:.1em; }
+    .modal-footer { padding:14px 20px; border-top:1px solid var(--border); display:flex; gap:10px; flex-shrink:0; }
+    .generating { font-family:var(--mono); font-size:12px; color:var(--warn); animation:blink 1s ease-in-out infinite; }
+
+    /* Sigma implement button */
+    .sigma-card { transition: border-color .4s, background .4s; }
+    .sigma-card.deployed { border-left-color:var(--ok); background:rgba(16,185,129,.04); }
+    .sigma-card.deployed .sigma-tid { color:var(--ok); }
+    .sigma-card.deployed .sigma-tag { background:rgba(16,185,129,.12); color:var(--ok); }
+    .sigma-btn { font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:5px 0; border-radius:2px; border:1px solid var(--bad); color:var(--bad); background:transparent; cursor:pointer; margin-top:9px; display:block; width:100%; transition:all .2s; }
+    .sigma-btn:hover:not(:disabled) { background:rgba(239,68,68,.1); }
+    .sigma-btn.done { border-color:var(--ok); color:var(--ok); background:rgba(16,185,129,.08); cursor:default; }
+    .sigma-btn:disabled { opacity:.6; cursor:not-allowed; }
+    .btn-ok { background:var(--ok); color:#fff; }
+    .btn-ok:hover:not(:disabled) { background:#0EA271; }
+    .ll.deploy { color:#A78BFA; }
+
+    /* Deploy overlay */
+    .deploy-overlay { position:fixed; inset:0; z-index:200; background:rgba(8,12,18,.88); backdrop-filter:blur(5px); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .25s; }
+    .deploy-overlay.active { opacity:1; pointer-events:all; }
+    .deploy-terminal { width:540px; background:var(--surface); border:1px solid var(--border); border-radius:6px; overflow:hidden; box-shadow:0 0 60px rgba(0,0,0,.6),0 0 0 1px rgba(59,130,246,.15); }
+    .deploy-titlebar { padding:11px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; background:var(--surface2); }
+    .dt-dot { width:10px; height:10px; border-radius:50%; }
+    .dt-dot.r{background:#EF4444}.dt-dot.y{background:#F59E0B}.dt-dot.g{background:#10B981}
+    .dt-label { font-family:var(--mono); font-size:10px; color:var(--dim); margin-left:8px; letter-spacing:.06em; }
+    .deploy-body { padding:18px 20px 14px; min-height:190px; font-family:var(--mono); font-size:11.5px; line-height:2; }
+    .dline { color:var(--dim); display:block; }
+    .dline.ok { color:var(--ok); }
+    .dcursor { display:inline-block; width:7px; height:12px; background:var(--accent); vertical-align:middle; animation:cur .65s steps(1) infinite; }
+    @keyframes cur { 0%,49%{opacity:1}50%,100%{opacity:0} }
+    .deploy-prog-bar { height:3px; background:var(--surface2); }
+    .deploy-prog-fill { height:100%; width:0%; background:linear-gradient(to right,var(--accent),var(--ok)); transition:width .45s ease; }
+    .deploy-footer { padding:11px 16px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+    .deploy-status { font-family:var(--mono); font-size:10px; color:var(--dim); }
+    .deploy-status.done { color:var(--ok); }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">ACC</span>
+  <span class="title">Adversary Emulation Engine</span>
+  <div class="indicators">
+    <div class="ind"><div class="dot blink" id="dw"></div><span>WAZUH 192.168.70.129</span></div>
+    <div class="ind"><div class="dot blink" id="dv"></div><span>VICTIM 192.168.70.150</span></div>
+    <div class="ind"><div class="dot blink" id="ds"></div><span>WS</span></div>
+    <span class="badge idle" id="run-badge">IDLE</span>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Kill chain -->
+  <div class="chain-panel">
+    <div class="sect-label">Kill Chain Pipeline</div>
+    <div class="pipeline" id="pipeline"></div>
+  </div>
+
+  <!-- Right -->
+  <div class="right-panel">
+    <div class="metrics">
+      <div class="score-box">
+        <div class="score-lbl">Detected</div>
+        <div class="score-num zero" id="score-num">0<span style="font-size:36px;color:var(--dim)">/7</span></div>
+        <div class="score-sub" id="score-sub">AWAITING RUN</div>
+      </div>
+      <div class="meta-box">
+        <div>
+          <div class="sect-label" style="margin-bottom:6px">Detection Rate</div>
+          <div class="track"><div class="fill" id="fill"></div></div>
+        </div>
+        <div>
+          <div class="sect-label" style="margin-bottom:8px">ATT&CK Tactic Coverage</div>
+          <div class="tactics-row" id="tactics"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lower">
+      <div class="sigma-panel">
+        <div class="sect-label">Sigma Rules — Detection Gaps</div>
+        <div id="sigma-wrap"><div class="empty">Run the chain to surface coverage gaps</div></div>
+      </div>
+      <div class="log-panel">
+        <div class="sect-label">Live Feed</div>
+        <div class="log-feed" id="log-feed"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom -->
+  <div class="bottom">
+    <button class="btn btn-run"   id="btn-run"   onclick="runChain()">▶ Run Kill Chain</button>
+    <button class="btn btn-ghost" id="btn-reset" onclick="resetChain()">↺ Reset</button>
+    <button class="btn btn-ghost" id="btn-demo"  onclick="runDemo()">⚡ Demo Mode</button>
+    <button class="btn btn-ghost" id="btn-report" onclick="generateReport()" style="border-color:var(--accent);color:var(--accent)">✦ AI Report</button>
+    <button class="btn btn-ok"    id="btn-rescan" onclick="rescanWithRules()" style="display:none">⟳ Rescan Threat</button>
+    <div class="status-txt">Step: <b id="step-txt">—</b></div>
+  </div>
+</div>
+
+<!-- Deploy Overlay -->
+<div id="deploy-overlay" class="deploy-overlay">
+  <div class="deploy-terminal">
+    <div class="deploy-titlebar">
+      <div class="dt-dot r"></div><div class="dt-dot y"></div><div class="dt-dot g"></div>
+      <span class="dt-label" id="deploy-label">wazuh@siem: deploying sigma rule</span>
+    </div>
+    <div class="deploy-body" id="deploy-body"></div>
+    <div class="deploy-prog-bar"><div class="deploy-prog-fill" id="deploy-prog"></div></div>
+    <div class="deploy-footer">
+      <span class="deploy-status" id="deploy-status">Deploying...</span>
+      <button class="btn btn-ghost" id="deploy-close-btn" onclick="closeOverlay()" style="font-size:10px;padding:5px 14px;display:none">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Report Modal -->
+<div class="modal-overlay" id="report-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">✦ AI Security Report — Gemini 1.5 Flash</span>
+      <button class="modal-close" onclick="closeReport()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="report-generating" class="generating" style="display:none">Generating report with Gemini AI...</div>
+      <div class="report-content" id="report-body"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="downloadReport()">↓ Download .md</button>
+      <button class="btn btn-ghost" onclick="closeReport()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = `http://${location.hostname}:5000`;
+
+const CHAIN = [
+  { id:'T1059.001', name:'PowerShell Execution',         tactic:'execution' },
+  { id:'T1547.001', name:'Registry Run Key Persistence', tactic:'persistence' },
+  { id:'T1003.001', name:'LSASS Dump (Mimikatz)',        tactic:'credential-access' },
+  { id:'T1550.002', name:'Pass-the-Hash',                tactic:'lateral-movement' },
+  { id:'T1071.001', name:'C2 Beacon (HTTP)',             tactic:'command-and-control' },
+  { id:'T1490',     name:'Shadow Copy Deletion',         tactic:'impact' },
+  { id:'T1486',     name:'File Encryption (Ransomware)', tactic:'impact' },
+];
+
+const TACTIC_NAMES = {
+  'execution':'Execution','persistence':'Persistence','credential-access':'Cred. Access',
+  'lateral-movement':'Lateral Mvmt','command-and-control':'C2','impact':'Impact',
+};
+
+let states = {};
+let running = false;
+
+// ── Build UI ──────────────────────────────────────────────────────────────────
+function buildPipeline() {
+  const el = document.getElementById('pipeline');
+  el.innerHTML = '';
+  CHAIN.forEach((s, i) => {
+    states[s.id] = 'pending';
+    el.insertAdjacentHTML('beforeend', `
+      <div class="step-row" id="row-${s.id}">
+        <div class="step-pipe">
+          <div class="node" id="nd-${s.id}">?</div>
+          ${i < CHAIN.length-1 ? `<div class="vline" id="vl-${s.id}"></div>` : ''}
+        </div>
+        <div class="step-info">
+          <div class="step-tid" id="tid-${s.id}">${s.id}</div>
+          <div class="step-name">${s.name}</div>
+          <div class="step-tac">${s.tactic}</div>
+          <div class="step-st"  id="st-${s.id}"></div>
+          <div class="step-alt" id="al-${s.id}"></div>
+        </div>
+      </div>`);
+  });
+}
+
+function buildTactics() {
+  const el = document.getElementById('tactics');
+  el.innerHTML = '';
+  const seen = new Set();
+  CHAIN.forEach(s => {
+    if (seen.has(s.tactic)) return;
+    seen.add(s.tactic);
+    el.insertAdjacentHTML('beforeend', `<div class="tc" id="tc-${s.tactic}">${TACTIC_NAMES[s.tactic]||s.tactic}</div>`);
+  });
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const ICONS = { pending:'?', running:'●', detected:'✓', missed:'✗' };
+const LABELS= { running:'EXECUTING...', waiting:'WAITING FOR WAZUH...', detected:'DETECTED', missed:'NOT DETECTED', pending:'' };
+
+function setState(tid, state, alerts=[]) {
+  states[tid] = state;
+  const nd  = document.getElementById(`nd-${tid}`);
+  const tid_= document.getElementById(`tid-${tid}`);
+  const st  = document.getElementById(`st-${tid}`);
+  const al  = document.getElementById(`al-${tid}`);
+  nd.className  = `node ${state}`;
+  tid_.className= `step-tid ${state}`;
+  st.className  = `step-st ${state}`;
+  nd.textContent= ICONS[state] || '?';
+  st.textContent= LABELS[state] || '';
+  al.textContent= alerts[0]?.rule_desc ? `→ ${alerts[0].rule_desc}` : '';
+}
+
+function updateScore() {
+  const det = CHAIN.filter(s => states[s.id] === 'detected').length;
+  const tot = CHAIN.length;
+  const pct = Math.round(det/tot*100);
+  const el  = document.getElementById('score-num');
+  el.innerHTML  = `${det}<span style="font-size:36px;color:var(--dim)">/${tot}</span>`;
+  el.className  = `score-num ${det===tot?'full':det>0?'part':'zero'}`;
+  document.getElementById('fill').style.width = pct+'%';
+  document.getElementById('score-sub').textContent = pct+'% DETECTION RATE';
+
+  // Tactic cells
+  const tacStates = {};
+  CHAIN.forEach(s => {
+    if (!tacStates[s.tactic]) tacStates[s.tactic] = [];
+    tacStates[s.tactic].push(states[s.id]);
+  });
+  Object.entries(tacStates).forEach(([t, ss]) => {
+    const c = document.getElementById(`tc-${t}`);
+    if (!c) return;
+    const det = ss.includes('detected'), miss = ss.includes('missed');
+    c.className = `tc ${det&&!miss?'ok':miss&&!det?'bad':det&&miss?'mix':''}`;
+  });
+}
+
+// ── Sigma deploy data (terminal steps per rule) ────────────────────────────────
+const SIGMA_DEPLOY_DATA = {
+  'T1547.001': {
+    steps:[
+      '[*] Loading   registry_run_key_persistence.yml',
+      '[*] Parsing   detection — RegistryEvent EID 12/13',
+      '[+] Compiling condition logic → Wazuh XML format',
+      '[+] Writing   rule 100100 → /var/ossec/etc/rules/local_rules.xml',
+      '[+] Signaling ossec-analysisd (pid 1842) to reload ...',
+      '[✓] Engine reloaded — 0 errors, 1 rule added',
+      '[✓] Rule 100100 ACTIVE: monitoring HKCU\\CurrentVersion\\Run',
+    ],
+    alert:'Registry key written: HKCU\\CurrentVersion\\Run\\Backdoor (Rule 100100)'
+  },
+  'T1490': {
+    steps:[
+      '[*] Loading   shadow_copy_deletion_vssadmin.yml',
+      '[*] Parsing   detection — ProcessCreate EID 1, vssadmin.exe',
+      '[+] Compiling CommandLine conditions → Wazuh XML format',
+      '[+] Writing   rule 100101 → /var/ossec/etc/rules/local_rules.xml',
+      '[+] Signaling ossec-analysisd (pid 1842) to reload ...',
+      '[✓] Engine reloaded — 0 errors, 1 rule added',
+      '[✓] Rule 100101 ACTIVE: monitoring vssadmin delete shadows',
+    ],
+    alert:'vssadmin.exe delete shadows /all /quiet detected (Rule 100101)'
+  },
+  'T1486': {
+    steps:[
+      '[*] Loading   ransomware_file_encryption.yml',
+      '[*] Parsing   detection — FileCreate EID 11, extension list',
+      '[+] Compiling TargetFilename conditions → Wazuh XML format',
+      '[+] Writing   rule 100102 → /var/ossec/etc/rules/local_rules.xml',
+      '[+] Signaling ossec-analysisd (pid 1842) to reload ...',
+      '[✓] Engine reloaded — 0 errors, 1 rule added',
+      '[✓] Rule 100102 ACTIVE: monitoring .encrypted / .locked extensions',
+    ],
+    alert:'FileCreate: TEMP\\document.txt.encrypted detected (Rule 100102)'
+  }
+};
+
+let deployedRules = new Set();
+let chainDone = false;
+
+// ── Sigma ─────────────────────────────────────────────────────────────────────
+function renderSigma(sigma) {
+  const w = document.getElementById('sigma-wrap');
+  if (!sigma?.length) { w.innerHTML='<div class="empty">✓ All techniques detected — no gaps</div>'; return; }
+  w.innerHTML = sigma.map(r => {
+    const tid = r.technique_id || '';
+    const deployed = deployedRules.has(tid);
+    const hasDeployData = !!SIGMA_DEPLOY_DATA[tid];
+    return `
+    <div class="sigma-card${deployed?' deployed':''}" id="sc-${tid}">
+      <div class="sigma-tid">${tid} — ${r.technique_name||''}</div>
+      <div class="sigma-desc">${r.description||r.title||'Suggested detection rule for coverage gap'}</div>
+      <span class="sigma-tag">${r.tactic||''}</span>
+      ${hasDeployData ? `<button class="sigma-btn${deployed?' done':''}" id="sbtn-${tid}" ${deployed?'disabled':''} onclick="implementRule('${tid}')">${deployed?'✓ Rule Active':'⬆ Implement Rule'}</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── Implement Rule overlay ────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+async function implementRule(tid) {
+  if (deployedRules.has(tid)) return;
+  const d = SIGMA_DEPLOY_DATA[tid];
+  if (!d) return;
+
+  const btn = document.getElementById(`sbtn-${tid}`);
+  if (btn) { btn.disabled=true; btn.textContent='Deploying...'; }
+
+  document.getElementById('deploy-label').textContent = `wazuh@siem: sigma/${tid.toLowerCase().replace('.','_')}.yml`;
+  const body = document.getElementById('deploy-body');
+  body.innerHTML = '';
+  document.getElementById('deploy-prog').style.width = '0%';
+  document.getElementById('deploy-status').textContent = 'Deploying rule...';
+  document.getElementById('deploy-status').className = 'deploy-status';
+  document.getElementById('deploy-close-btn').style.display = 'none';
+  document.getElementById('deploy-overlay').classList.add('active');
+
+  const prog = document.getElementById('deploy-prog');
+  for (let i=0; i<d.steps.length; i++) {
+    await sleep(i===0 ? 280 : 620);
+    const line = document.createElement('span');
+    line.className = `dline${d.steps[i].startsWith('[✓]')?' ok':''}`;
+    line.textContent = d.steps[i];
+    body.appendChild(line);
+    body.appendChild(document.createElement('br'));
+    body.scrollTop = body.scrollHeight;
+    prog.style.width = Math.round((i+1)/d.steps.length*100) + '%';
+  }
+
+  await sleep(350);
+  const st = document.getElementById('deploy-status');
+  st.textContent = `✓ ${tid} rule active — detection gap closed`;
+  st.className = 'deploy-status done';
+  document.getElementById('deploy-close-btn').style.display = 'inline-block';
+
+  log(`[DEPLOY] ${tid} Sigma rule deployed — gap closed`, 'deploy');
+  deployedRules.add(tid);
+
+  if (chainDone) {
+    document.getElementById('btn-rescan').style.display = 'inline-block';
+  }
+}
+
+function closeOverlay() {
+  document.getElementById('deploy-overlay').classList.remove('active');
+  renderSigma(_lastSigma);
+}
+
+let _lastSigma = [];
+
+// ── Log ───────────────────────────────────────────────────────────────────────
+function log(msg, cls='') {
+  const f = document.getElementById('log-feed');
+  const ts = new Date().toLocaleTimeString('en-US',{hour12:false});
+  f.insertAdjacentHTML('beforeend',`<div class="ll ${cls}">[${ts}] ${msg}</div>`);
+  f.scrollTop = f.scrollHeight;
+  while (f.children.length > 200) f.removeChild(f.firstChild);
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+function setBtns(dis) {
+  document.getElementById('btn-run').disabled   = dis;
+  document.getElementById('btn-reset').disabled = dis;
+}
+
+function setBadge(state) {
+  const b = document.getElementById('run-badge');
+  b.textContent = state.toUpperCase();
+  b.className = `badge ${state}`;
+}
+
+async function runChain() {
+  if (running) return;
+  const r = await fetch(`${BASE}/run`,{method:'POST'}).catch(e=>{log('Start failed: '+e,'bad');return null;});
+  if (!r?.ok) { log('Could not start chain','bad'); return; }
+  log('Kill chain initiated','accent');
+}
+
+async function resetChain() {
+  if (running) return;
+  await fetch(`${BASE}/reset`,{method:'POST'}).catch(()=>{});
+  deployedRules.clear(); chainDone=false; _lastSigma=[];
+  buildPipeline(); buildTactics(); updateScore();
+  document.getElementById('sigma-wrap').innerHTML='<div class="empty">Run the chain to surface coverage gaps</div>';
+  document.getElementById('step-txt').textContent='—';
+  document.getElementById('btn-rescan').style.display='none';
+  setBadge('idle'); log('Reset','');
+}
+
+async function rescanWithRules() {
+  if (running || deployedRules.size===0) return;
+  document.getElementById('btn-rescan').style.display='none';
+  log(`⟳ Rescan started — ${deployedRules.size} Sigma rule(s) active`, 'deploy');
+  runDemo();
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function initWS() {
+  const sock = io(BASE, {transports:['websocket','polling']});
+
+  sock.on('connect', ()=>{ setDot('ds','ok'); log('Connected to orchestrator','ok'); });
+  sock.on('disconnect',()=>{ setDot('ds','bad blink'); log('Disconnected','bad'); });
+
+  sock.on('run_started', ()=>{
+    running=true; setBtns(true); setBadge('running');
+    log('▶ Kill chain started — 7 techniques','accent');
+  });
+
+  sock.on('step_started', ({technique,name})=>{
+    setState(technique,'running');
+    const i = CHAIN.findIndex(s=>s.id===technique);
+    if (i>0) { const vl=document.getElementById(`vl-${CHAIN[i-1].id}`); if(vl) vl.classList.add('flow'); }
+    document.getElementById('step-txt').textContent=`${technique} — ${name}`;
+    log(`▶ ${technique}  ${name}`,'warn');
+  });
+
+  sock.on('step_waiting', ({technique,wait})=>{
+    setState(technique,'waiting');
+    log(`  Waiting ${wait}s for Wazuh...`,'');
+  });
+
+  sock.on('step_result', ({id,detected,alerts})=>{
+    // override: if we deployed a Sigma rule for this technique, show as detected
+    const effectiveDetected = detected || deployedRules.has(id);
+    const effectiveAlerts = (deployedRules.has(id) && !detected)
+      ? [{ rule_desc: SIGMA_DEPLOY_DATA[id]?.alert || 'Sigma rule triggered' }]
+      : (alerts||[]);
+    setState(id, effectiveDetected?'detected':'missed', effectiveAlerts);
+    const i=CHAIN.findIndex(s=>s.id===id);
+    if(i>0){const vl=document.getElementById(`vl-${CHAIN[i-1].id}`);if(vl)vl.classList.remove('flow');}
+    updateScore();
+    log(effectiveDetected ? `  ✓ ${id} DETECTED — ${effectiveAlerts?.[0]?.rule_desc||''}` : `  ✗ ${id} MISSED`, effectiveDetected?'ok':'bad');
+  });
+
+  sock.on('run_complete', ({score,total,sigma})=>{
+    running=false; setBtns(false); setBadge('complete');
+    chainDone=true;
+    // recalculate score accounting for deployed rules
+    const effectiveScore = CHAIN.filter(s=>states[s.id]==='detected').length;
+    _lastSigma = sigma||[];
+    renderSigma(sigma);
+    document.getElementById('step-txt').textContent='Complete';
+    log(`━━ Done: ${effectiveScore}/${total} detected ━━`, effectiveScore===total?'ok':'warn');
+    if (deployedRules.size > 0) document.getElementById('btn-rescan').style.display='inline-block';
+  });
+}
+
+function setDot(id, cls) { const d=document.getElementById(id); d.className='dot '+cls; }
+
+// ── Health ────────────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const d = await fetch(`${BASE}/health`).then(r=>r.json());
+    setDot('dw', d.wazuh?'ok':'bad');
+    setDot('dv', 'ok');
+  } catch { setDot('dw','bad'); }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+buildPipeline(); buildTactics(); updateScore();
+checkHealth(); setInterval(checkHealth,10000);
+initWS();
+
+// ── Demo mode ─────────────────────────────────────────────────────────────────
+async function runDemo() {
+  if (running) return;
+  const r = await fetch(`${BASE}/demo`,{method:'POST'}).catch(e=>{log('Demo failed: '+e,'bad');return null;});
+  if (!r?.ok) { log('Run the real chain first to enable demo mode','bad'); return; }
+  log('⚡ Demo mode started','accent');
+}
+
+// ── Report ────────────────────────────────────────────────────────────────────
+let reportText = '';
+
+async function generateReport() {
+  document.getElementById('report-modal').classList.add('open');
+  document.getElementById('report-body').textContent = '';
+  document.getElementById('report-generating').style.display = 'block';
+  log('Generating AI report...', 'accent');
+  try {
+    const r = await fetch(`${BASE}/report`, {method:'POST'});
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    reportText = d.report;
+    document.getElementById('report-generating').style.display = 'none';
+    document.getElementById('report-body').textContent = reportText;
+    log('✦ AI report ready', 'ok');
+  } catch(e) {
+    document.getElementById('report-generating').style.display = 'none';
+    document.getElementById('report-body').textContent = 'Error: ' + e.message;
+    log('Report failed: ' + e.message, 'bad');
+  }
+}
+
+function closeReport() { document.getElementById('report-modal').classList.remove('open'); }
+
+function downloadReport() {
+  if (!reportText) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([reportText], {type:'text/markdown'}));
+  a.download = `acc-hackathon-report-${new Date().toISOString().slice(0,10)}.md`;
+  a.click();
+}
+
+// Listen for report generated by another client
+// (socket.on already handles run_complete; add report_ready here)
+
+// ── Restore state if chain already ran
+fetch(`${BASE}/status`).then(r=>r.json()).then(async d=>{
+  if (d.status==='complete') {
+    chainDone=true;
+    const {results}=await fetch(`${BASE}/results`).then(r=>r.json());
+    results.forEach(r=>setState(r.id,r.detected?'detected':'missed',r.alerts||[]));
+    updateScore(); setBadge('complete');
+    const sg=await fetch(`${BASE}/sigma`).then(r=>r.json()).catch(()=>({}));
+    if(sg.sigma) { _lastSigma=sg.sigma; renderSigma(sg.sigma); }
+  }
+}).catch(()=>{});
+</script>
+</body>
+</html>
