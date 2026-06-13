@@ -1,0 +1,45 @@
+title: Registry Run Key Persistence via Sysmon
+id: b2c3d4e5-f6a7-8901-bcde-f01234567891
+status: experimental
+description: |
+    Detects modification of HKCU or HKLM Run/RunOnce registry keys used to establish
+    persistence across reboots. Technique T1547.001 was NOT DETECTED during the ACC
+    Hackathon live run — Wazuh had no Sysmon EID 12/13 rules configured for these
+    paths. This rule closes that gap.
+references:
+    - https://attack.mitre.org/techniques/T1547/001/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1547.001
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-12
+tags:
+    - attack.persistence
+    - attack.t1547.001
+logsource:
+    product: windows
+    category: registry_set
+detection:
+    selection:
+        EventID:
+            - 12
+            - 13
+            - 14
+        TargetObject|contains:
+            - '\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
+            - '\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce'
+            - '\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run'
+    filter_legitimate:
+        Image|startswith:
+            - 'C:\Program Files\'
+            - 'C:\Program Files (x86)\'
+            - 'C:\Windows\System32\'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Legitimate software adding startup entries during installation
+    - Windows Update mechanisms
+level: high
+fields:
+    - ComputerName
+    - User
+    - TargetObject
+    - Details
+    - Image

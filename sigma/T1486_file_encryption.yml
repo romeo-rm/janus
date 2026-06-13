@@ -1,0 +1,47 @@
+title: Ransomware File Encryption via Suspicious File Extension Writes
+id: a7b8c9d0-e1f2-3456-0123-456789012346
+status: experimental
+description: |
+    Detects mass creation of files with ransomware-associated extensions, indicating
+    active file encryption by a ransomware payload. Technique T1486 was NOT DETECTED
+    during the ACC Hackathon live run — Wazuh had no Sysmon EID 11 rules monitoring
+    for ransomware file extension patterns. This rule closes that gap.
+references:
+    - https://attack.mitre.org/techniques/T1486/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1486
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-12
+tags:
+    - attack.impact
+    - attack.t1486
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        EventID: 11
+        TargetFilename|endswith:
+            - '.encrypted'
+            - '.enc'
+            - '.locked'
+            - '.crypted'
+            - '.crypt'
+            - '.ryk'
+            - '.makop'
+            - '.lckd'
+            - '.ransom'
+    filter_legit:
+        Image|startswith:
+            - 'C:\Program Files\'
+            - 'C:\Program Files (x86)\'
+            - 'C:\Windows\System32\'
+    condition: selection and not filter_legit
+falsepositives:
+    - Legitimate encryption software writing files with .enc extension (e.g. GPG)
+    - Development environments testing encryption libraries
+level: critical
+fields:
+    - ComputerName
+    - User
+    - Image
+    - TargetFilename

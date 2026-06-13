@@ -1,0 +1,46 @@
+title: Suspicious PowerShell Execution from Abnormal Parent Process
+id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+status: experimental
+description: |
+    Detects PowerShell spawned from an unusual parent process.
+    Technique T1059.001 was DETECTED during the ACC Hackathon live run.
+    Wazuh alert fired: "Windows command prompt started by an abnormal process."
+references:
+    - https://attack.mitre.org/techniques/T1059/001/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1059.001
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-12
+tags:
+    - attack.execution
+    - attack.t1059.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        ParentImage|endswith:
+            - '\cmd.exe'
+            - '\wscript.exe'
+            - '\cscript.exe'
+            - '\mshta.exe'
+            - '\rundll32.exe'
+            - '\regsvr32.exe'
+            - '\svchost.exe'
+            - '\explorer.exe'
+    filter_system:
+        ParentImage|startswith: 'C:\Windows\System32\'
+        CommandLine|contains: '-NonInteractive'
+    condition: selection and not filter_system
+falsepositives:
+    - Administrative scripts invoked by task scheduler through svchost
+    - Legitimate software installers launching PowerShell from explorer.exe
+level: medium
+fields:
+    - ComputerName
+    - User
+    - CommandLine
+    - ParentImage
+    - ParentCommandLine

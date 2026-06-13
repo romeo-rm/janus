@@ -1,0 +1,52 @@
+title: Suspicious Outbound HTTP Beacon from Non-Browser Process
+id: e5f6a7b8-c9d0-1234-ef01-234567890124
+status: experimental
+description: |
+    Detects outbound HTTP/HTTPS connections from processes that do not typically
+    generate web traffic, which may indicate C2 beacon activity. Technique T1071.001
+    was DETECTED during the ACC Hackathon live run via Wazuh alert: "Windows command
+    prompt started by an abnormal process."
+references:
+    - https://attack.mitre.org/techniques/T1071/001/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1071.001
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-12
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        Initiated: 'true'
+        DestinationPort:
+            - 80
+            - 443
+            - 8080
+            - 8443
+        Image|endswith:
+            - '\powershell.exe'
+            - '\cmd.exe'
+            - '\wscript.exe'
+            - '\cscript.exe'
+            - '\mshta.exe'
+            - '\rundll32.exe'
+            - '\regsvr32.exe'
+    filter_update:
+        DestinationIp|startswith:
+            - '10.'
+            - '192.168.'
+            - '172.16.'
+    condition: selection and not filter_update
+falsepositives:
+    - PowerShell scripts that legitimately download updates or configuration
+    - WSUS or SCCM agents using PowerShell for updates
+level: medium
+fields:
+    - ComputerName
+    - User
+    - Image
+    - DestinationIp
+    - DestinationPort
+    - DestinationHostname

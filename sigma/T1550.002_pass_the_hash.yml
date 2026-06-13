@@ -1,0 +1,43 @@
+title: Pass-the-Hash Authentication via NTLM
+id: d4e5f6a7-b8c9-0123-def0-123456789013
+status: experimental
+description: |
+    Detects Pass-the-Hash lateral movement by identifying NTLM network logon events
+    from non-standard processes. Technique T1550.002 was DETECTED during the ACC
+    Hackathon live run via Wazuh alert: "Windows logon success." This rule adds
+    additional context by correlating with the source process.
+references:
+    - https://attack.mitre.org/techniques/T1550/002/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1550.002
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-12
+tags:
+    - attack.lateral_movement
+    - attack.t1550.002
+logsource:
+    product: windows
+    service: security
+detection:
+    selection:
+        EventID: 4624
+        LogonType: 3
+        AuthenticationPackageName: NTLM
+        WorkstationName: '%Workstations%'
+    filter_local:
+        IpAddress:
+            - '127.0.0.1'
+            - '::1'
+    filter_machine:
+        SubjectUserName|endswith: '$'
+    condition: selection and not filter_local and not filter_machine
+falsepositives:
+    - Legitimate NTLM authentication in environments that have not migrated to Kerberos
+    - Network shares accessed via mapped drives using NTLM
+level: high
+fields:
+    - ComputerName
+    - SubjectUserName
+    - TargetUserName
+    - IpAddress
+    - LogonType
+    - AuthenticationPackageName

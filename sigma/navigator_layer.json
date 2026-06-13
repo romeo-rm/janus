@@ -1,0 +1,138 @@
+{
+  "name": "Janus — Ransomware Kill Chain Coverage (ACC Hackathon 2026)",
+  "versions": {
+    "attack": "15",
+    "navigator": "5.1",
+    "layer": "4.5"
+  },
+  "domain": "enterprise-attack",
+  "description": "ATT&CK Navigator coverage layer for the Janus purple team emulation run at ACC Hackathon 2026. Green = detected by Wazuh during live run. Red = executed but not detected (gap). Detection rules (Sigma YAML) are available in the sigma/ directory of this repository.",
+  "filters": {
+    "platforms": ["Windows"]
+  },
+  "sorting": 0,
+  "layout": {
+    "layout": "side",
+    "aggregateFunction": "average",
+    "showID": true,
+    "showName": true,
+    "showAggregateScores": false,
+    "countUnscored": false
+  },
+  "hideDisabled": false,
+  "techniques": [
+    {
+      "techniqueID": "T1059.001",
+      "tactic": "execution",
+      "color": "#66bb6a",
+      "comment": "DETECTED — Wazuh alert: 'Windows command prompt started by an abnormal process.' Atomic Red Team Test 1. Sigma rule: sigma/T1059.001_powershell_execution.yml",
+      "score": 100,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "DETECTED" },
+        { "name": "wazuh_alert", "value": "Windows command prompt started by an abnormal process" },
+        { "name": "sigma_rule", "value": "sigma/T1059.001_powershell_execution.yml" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1547.001",
+      "tactic": "persistence",
+      "color": "#ef5350",
+      "comment": "MISSED — Executed but not detected. Root cause: no Sysmon EID 12/13 rules for HKCU/HKLM Run keys in Wazuh. Gap closed by Sigma rule: sigma/T1547.001_registry_run_key.yml",
+      "score": 0,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "MISSED — GAP" },
+        { "name": "root_cause", "value": "No Sysmon registry event rules in Wazuh for Run key paths" },
+        { "name": "sigma_rule", "value": "sigma/T1547.001_registry_run_key.yml" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1003.001",
+      "tactic": "credential-access",
+      "color": "#66bb6a",
+      "comment": "DETECTED — Wazuh alert: 'Windows command prompt started by an abnormal process.' Atomic Red Team Test 1 (ProcDump). Sigma rule: sigma/T1003.001_lsass_dump.yml",
+      "score": 100,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "DETECTED" },
+        { "name": "wazuh_alert", "value": "Windows command prompt started by an abnormal process" },
+        { "name": "sigma_rule", "value": "sigma/T1003.001_lsass_dump.yml" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1550.002",
+      "tactic": "lateral-movement",
+      "color": "#66bb6a",
+      "comment": "DETECTED — Wazuh alert: 'Windows logon success.' Atomic Red Team Test 1. Sigma rule: sigma/T1550.002_pass_the_hash.yml",
+      "score": 100,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "DETECTED" },
+        { "name": "wazuh_alert", "value": "Windows logon success" },
+        { "name": "sigma_rule", "value": "sigma/T1550.002_pass_the_hash.yml" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1071.001",
+      "tactic": "command-and-control",
+      "color": "#66bb6a",
+      "comment": "DETECTED — Wazuh alert: 'Windows command prompt started by an abnormal process.' Atomic Red Team Test 1. Sigma rule: sigma/T1071.001_c2_beacon_http.yml",
+      "score": 100,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "DETECTED" },
+        { "name": "wazuh_alert", "value": "Windows command prompt started by an abnormal process" },
+        { "name": "sigma_rule", "value": "sigma/T1071.001_c2_beacon_http.yml" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1490",
+      "tactic": "impact",
+      "color": "#ef5350",
+      "comment": "MISSED — Executed but not detected. Root cause: no Wazuh rule targeting vssadmin.exe with delete shadows arguments. Gap closed by Sigma rule: sigma/T1490_shadow_copy_deletion.yml",
+      "score": 0,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "MISSED — GAP" },
+        { "name": "root_cause", "value": "No detection rule for vssadmin.exe shadow deletion" },
+        { "name": "sigma_rule", "value": "sigma/T1490_shadow_copy_deletion.yml" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1486",
+      "tactic": "impact",
+      "color": "#ef5350",
+      "comment": "MISSED — Executed but not detected. Root cause: no Sysmon EID 11 rules monitoring ransomware file extensions (.encrypted, .enc, etc.). Gap closed by Sigma rule: sigma/T1486_file_encryption.yml",
+      "score": 0,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "MISSED — GAP" },
+        { "name": "root_cause", "value": "No FileCreate monitoring for ransomware extensions" },
+        { "name": "sigma_rule", "value": "sigma/T1486_file_encryption.yml" }
+      ],
+      "showSubtechniques": false
+    }
+  ],
+  "gradient": {
+    "colors": ["#ef5350", "#66bb6a"],
+    "minValue": 0,
+    "maxValue": 100
+  },
+  "legendItems": [
+    { "label": "Detected by Wazuh (live run)", "color": "#66bb6a" },
+    { "label": "Executed but NOT detected — gap", "color": "#ef5350" }
+  ],
+  "metadata": [],
+  "links": [],
+  "showTacticRowBackground": true,
+  "tacticRowBackground": "#1E3A5F",
+  "selectTechniquesAcrossTactics": false,
+  "selectSubtechniquesWithParent": false
+}
