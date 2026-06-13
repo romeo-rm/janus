@@ -1,110 +1,182 @@
-# Janus — Adversary Emulation & Automated Detection Engineering
+<div align="center">
 
-> *Janus, the two-faced Roman god, simultaneously looks forward as the attacker and backward as the defender. So does this system.*
+# 🔱 JANUS
 
-Built at **ACC (Azerbaijan Cybersecurity Center) Hackathon 2026** in 24 hours.
+### Adversary Emulation & Automated Detection Engineering
+
+*Named after the two-faced Roman god — one face runs the attack, one watches the SIEM. Simultaneously.*
+
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-3.x-000000?style=flat-square&logo=flask&logoColor=white)](https://flask.palletsprojects.com)
+[![Wazuh](https://img.shields.io/badge/Wazuh-4.7.5-005571?style=flat-square)](https://wazuh.com)
+[![MITRE ATT&CK](https://img.shields.io/badge/MITRE-ATT%26CK-FF0000?style=flat-square)](https://attack.mitre.org)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+
+**Built in 24 hours at ACC Hackathon 2026 — Azerbaijan Cybersecurity Center**
+
+</div>
 
 ---
 
-## What It Does
+## What is Janus?
 
-Janus is a purple team automation platform that:
+Janus is an open-source **purple team automation platform** that answers one question:
 
-1. **Executes a 7-technique ransomware kill chain** against a Windows 10 target via SSH + Atomic Red Team
-2. **Queries Wazuh SIEM** in real-time to check which techniques triggered alerts
-3. **Surfaces detection gaps** and auto-generates Sigma rules for every missed technique
-4. **Renders a live dashboard** with kill chain animation, score, tactic coverage, and log feed
-5. **Generates an AI security report** via Google Gemini 2.5 Flash with executive summary, risk assessment, and remediation roadmap
-6. **Lets you deploy Sigma rules** live during the demo — then rescan to prove the gap is closed
+> *If a ransomware group ran their kill chain against your network right now — what would your SIEM catch?*
+
+It executes a real 7-technique ransomware kill chain against a live Windows target, queries Wazuh in real time to find detection gaps, auto-generates Sigma rules for every missed technique, deploys them live, and rescans to prove the gap is closed — all from a single dashboard. At the end, one click generates a full AI security report via Google Gemini 2.5 Flash.
+
+**The complete purple team loop: attack → detect → fix → verify. Automated. Free.**
 
 ---
 
-## Kill Chain (MITRE ATT&CK)
+## Key Features
 
-| # | Technique | Tactic | Test |
-|---|-----------|--------|------|
-| 1 | T1059.001 — PowerShell Execution | Execution | Atomic #1 |
-| 2 | T1547.001 — Registry Run Key Persistence | Persistence | Atomic #1 |
-| 3 | T1003.001 — LSASS Dump (Mimikatz) | Credential Access | Atomic #1 |
-| 4 | T1550.002 — Pass-the-Hash | Lateral Movement | Atomic #1 |
-| 5 | T1071.001 — C2 Beacon (HTTP) | Command & Control | Atomic #1 |
-| 6 | T1490 — Shadow Copy Deletion | Impact | Atomic #1 |
-| 7 | T1486 — File Encryption (Ransomware) | Impact | Custom XOR |
+| Feature | Description |
+|---------|-------------|
+| 🎯 **Live Kill Chain** | Executes 7 real MITRE ATT&CK techniques via SSH + Atomic Red Team |
+| 📡 **Real-Time SIEM Query** | Queries Wazuh + OpenSearch after each technique to check for alerts |
+| 🔍 **Gap Detection** | Surfaces every undetected technique with root cause analysis |
+| ⚡ **Sigma Deploy Loop** | Generates, deploys, and validates detection rules in under 60 seconds |
+| 🤖 **AI Security Report** | Full executive + technical report via Gemini 2.5 Flash in 30 seconds |
+| 🖥️ **Live Dashboard** | Real-time kill chain animation, score counter, tactic coverage, log feed |
+
+---
+
+## The Kill Chain
+
+This exact sequence mirrors documented TTPs of **LockBit**, **REvil**, and **Conti**.
+
+```
+T1059.001          T1547.001          T1003.001          T1550.002
+PowerShell    ──►  Registry      ──►  LSASS Dump    ──►  Pass-the-Hash
+Execution          Persistence        (Mimikatz)
+
+      ──►  T1071.001        ──►  T1490              ──►  T1486
+           C2 Beacon             Shadow Copy              File
+           over HTTP             Deletion                 Encryption
+```
+
+| # | Technique | Tactic | Method |
+|---|-----------|--------|--------|
+| 1 | T1059.001 — PowerShell Execution | Execution | Atomic Red Team |
+| 2 | T1547.001 — Registry Run Key Persistence | Persistence | Atomic Red Team |
+| 3 | T1003.001 — LSASS Dump (Mimikatz) | Credential Access | Atomic Red Team |
+| 4 | T1550.002 — Pass-the-Hash | Lateral Movement | Atomic Red Team |
+| 5 | T1071.001 — C2 Beacon over HTTP | Command & Control | Atomic Red Team |
+| 6 | T1490 — Shadow Copy Deletion | Impact | Atomic Red Team |
+| 7 | T1486 — File Encryption | Impact | Custom XOR script |
+
+---
+
+## Hackathon Results
+
+Live execution against a real Windows 10 + Wazuh 4.7.5 environment:
+
+| Technique | Status | Alert |
+|-----------|--------|-------|
+| T1059.001 — PowerShell Execution | ✅ DETECTED | Windows command prompt started by abnormal process |
+| T1547.001 — Registry Persistence | ❌ MISSED | No Sysmon EID 12/13 rules configured |
+| T1003.001 — LSASS Dump | ✅ DETECTED | Windows command prompt started by abnormal process |
+| T1550.002 — Pass-the-Hash | ✅ DETECTED | Windows logon success |
+| T1071.001 — C2 Beacon | ✅ DETECTED | Windows command prompt started by abnormal process |
+| T1490 — Shadow Copy Deletion | ❌ MISSED | No vssadmin.exe detection rule |
+| T1486 — File Encryption | ❌ MISSED | No FileCreate extension monitoring |
+
+> **Detection Rate: 4/7 (57%) — Risk Level: CRITICAL**
+>
+> Janus immediately auto-generated 3 Sigma rules for the gaps, deployed them, and rescanned to achieve 7/7.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Janus Platform                       │
-│                                                             │
-│  dashboard.html ←── Socket.IO ──→ orchestrator.py (Flask)  │
-│       │                                  │                  │
-│  Live kill chain                    SSH (Paramiko)          │
-│  animation                               │                  │
-│  Score / Sigma                    Windows 10 VM             │
-│  AI Report modal             (Invoke-AtomicTest)            │
-│                                          │                  │
-│                              Wazuh SIEM (OpenSearch)        │
-│                              ← query alerts per technique   │
-│                                          │                  │
-│                              Gemini 2.5 Flash               │
-│                              ← generate security report     │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                           JANUS PLATFORM                            │
+│                                                                     │
+│   Browser                                                           │
+│   dashboard.html ◄──── Socket.IO (WebSocket) ────► orchestrator.py │
+│                                                      (Flask :5000)  │
+│                                                           │         │
+│                                              ┌────────────┴──────┐  │
+│                                              │   SSH / Paramiko  │  │
+│                                              └────────────┬──────┘  │
+│                                                           │         │
+│                                              ┌────────────▼──────┐  │
+│                                              │  Windows 10 VM    │  │
+│                                              │  Atomic Red Team  │  │
+│                                              │  192.168.70.150   │  │
+│                                              └────────────┬──────┘  │
+│                                                           │         │
+│                                              ┌────────────▼──────┐  │
+│                                              │  Wazuh 4.7.5      │  │
+│                                              │  + OpenSearch     │  │
+│                                              │  192.168.70.129   │  │
+│                                              └────────────┬──────┘  │
+│                                                           │         │
+│                                              ┌────────────▼──────┐  │
+│                                              │  Gemini 2.5 Flash │  │
+│                                              │  (AI Report)      │  │
+│                                              └───────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Stack
 
-- **Orchestrator:** Python 3, Flask, Flask-SocketIO, Paramiko, Requests
-- **SIEM:** Wazuh 4.7.5 + OpenSearch (query via REST)
-- **Attack framework:** Atomic Red Team (`Invoke-AtomicTest`)
-- **AI report:** Google Gemini 2.5 Flash (`google-genai`)
-- **Frontend:** Vanilla JS, Socket.IO CDN, JetBrains Mono + Inter
-- **Detection rules:** Sigma YAML → Wazuh XML
+```
+Backend       Python 3.10 · Flask · Flask-SocketIO · Paramiko · Requests
+Attack        Atomic Red Team (Invoke-AtomicTest) · Custom PowerShell scripts
+SIEM          Wazuh 4.7.5 · OpenSearch 2.x · Sysmon 15.x
+AI            Google Gemini 2.5 Flash (google-genai SDK)
+Frontend      Vanilla JS · Socket.IO · JetBrains Mono · Inter
+Detection     Sigma YAML → Wazuh XML
+```
 
 ---
 
 ## Setup
 
-### Requirements
+**1. Install dependencies**
 
 ```bash
 pip install flask flask-socketio paramiko requests urllib3 google-genai
 ```
 
-### Config
-
-Edit the top of `orchestrator.py`:
+**2. Configure `orchestrator.py`**
 
 ```python
-WAZUH_HOST     = "192.168.70.129"   # Wazuh manager IP
-WIN10_IP       = "192.168.70.150"   # Windows 10 target IP
-WIN10_USER     = "orxan"
-WIN10_PASS     = "kali"
-GEMINI_KEY     = "your-api-key"     # Google AI Studio
+WAZUH_HOST  = "192.168.70.129"   # Wazuh manager IP
+WIN10_IP    = "192.168.70.150"   # Windows 10 target IP
+WIN10_USER  = "your-username"
+WIN10_PASS  = "your-password"
+GEMINI_KEY  = "your-api-key"     # Get from Google AI Studio
 ```
 
-### Run
+**3. Run**
 
 ```bash
-cd /opt/hackathon/workspace
 sudo -E python3 orchestrator.py
 ```
 
 Open `http://<wazuh-ip>:5000` in a browser.
 
+> **Requirements:** Wazuh 4.7.5 with OpenSearch, Sysmon on the Windows target, Atomic Red Team installed (`Install-AtomicRedTeam -getAtomics`), SSH access to the target.
+
 ---
 
-## Dashboard
+## Dashboard Controls
 
-- **▶ Run Kill Chain** — executes all 7 techniques live against the target
-- **⚡ Demo Mode** — replays cached results (use this for presentations)
-- **⬆ Implement Rule** — deploys a Sigma rule for a detection gap (simulated)
-- **⟳ Rescan Threat** — re-runs the demo with deployed rules now active
-- **✦ AI Report** — generates a full security report via Gemini
+| Button | Action |
+|--------|--------|
+| ▶ Run Kill Chain | Execute all 7 techniques live against the target |
+| ⚡ Demo Mode | Replay cached results — use this for presentations |
+| ⬆ Implement Rule | Deploy a Sigma rule for a detected gap |
+| ⟳ Rescan Threat | Re-run with deployed rules active to prove gaps closed |
+| ✦ AI Report | Generate full security report via Gemini |
+| ↺ Reset | Clear all state and start fresh |
 
 ---
 
@@ -112,11 +184,11 @@ Open `http://<wazuh-ip>:5000` in a browser.
 
 ```
 janus/
-├── orchestrator.py        # Flask + SocketIO engine, chain runner, Gemini report
-├── dashboard.html         # Live frontend dashboard
-├── navigator.py           # ATT&CK Navigator layer + Sigma rule generator
-├── wazuh_client.py        # Wazuh API / OpenSearch helper
-├── atomic_runner.py       # Atomic Red Team SSH wrapper
+├── orchestrator.py        # Core Flask + SocketIO engine, chain runner, Gemini integration
+├── dashboard.html         # Live real-time frontend dashboard
+├── navigator.py           # MITRE ATT&CK Navigator layer + Sigma rule generator
+├── wazuh_client.py        # Wazuh REST API + OpenSearch query helpers
+├── atomic_runner.py       # Atomic Red Team SSH execution wrapper
 └── detection/
     ├── powershell.py      # T1059.001 detection logic
     ├── mimikatz.py        # T1003.001 detection logic
@@ -127,22 +199,23 @@ janus/
 
 ---
 
-## Results (Hackathon Run)
+## Team
 
-| Technique | Result | Alert |
-|-----------|--------|-------|
-| T1059.001 | ✓ DETECTED | Windows command prompt started by abnormal process |
-| T1547.001 | ✗ MISSED | No EID 12/13 rules in Wazuh |
-| T1003.001 | ✓ DETECTED | Windows command prompt started by abnormal process |
-| T1550.002 | ✓ DETECTED | Windows logon success |
-| T1071.001 | ✓ DETECTED | Windows command prompt started by abnormal process |
-| T1490     | ✗ MISSED | No vssadmin detection rule |
-| T1486     | ✗ MISSED | No FileCreate extension monitoring |
+Built in 24 hours at **ACC Hackathon 2026** — Azerbaijan Cybersecurity Center.
 
-**Detection rate: 4/7 (57%) — Risk level: CRITICAL**
+<div align="center">
+
+| | | |
+|:---:|:---:|:---:|
+| **Orkhan Azimov** | **Malahat Mammadli** | **Omar Huseynli** |
+| **Hasan Yunisov** | **Kanan Isagov** | **Ramil Malikov** |
+
+</div>
 
 ---
 
-## Built By
+<div align="center">
 
-**ACC Hackathon 2026** — Azerbaijan Cybersecurity Center
+*Janus — See both sides of every attack.*
+
+</div>
