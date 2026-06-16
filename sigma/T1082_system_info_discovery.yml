@@ -1,0 +1,49 @@
+title: System Information Discovery via Built-in Windows Tools
+id: f2a3b4c5-d6e7-8901-f012-345678901234
+status: experimental
+description: |
+    Detects execution of native Windows commands used to enumerate host information
+    during the discovery phase. Adversaries run systeminfo, hostname, and winver
+    to fingerprint the target before subsequent exploitation steps.
+    Technique T1082 — System Information Discovery.
+    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.
+references:
+    - https://attack.mitre.org/techniques/T1082/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1082
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.discovery
+    - attack.t1082
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_tools:
+        EventID: 1
+        Image|endswith:
+            - '\systeminfo.exe'
+            - '\hostname.exe'
+    selection_cmd_ver:
+        EventID: 1
+        Image|endswith: '\cmd.exe'
+        CommandLine|contains:
+            - 'systeminfo'
+            - 'hostname'
+            - 'winver'
+    filter_msi:
+        ParentImage|endswith: '\msiexec.exe'
+        User|contains:
+            - 'SYSTEM'
+    condition: (selection_tools or selection_cmd_ver) and not filter_msi
+falsepositives:
+    - IT asset management and inventory collection agents (SCCM, Lansweeper)
+    - Helpdesk scripts gathering system data during remote support sessions
+    - Scheduled diagnostic tasks
+level: low
+fields:
+    - ComputerName
+    - User
+    - CommandLine
+    - ParentImage

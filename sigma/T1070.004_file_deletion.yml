@@ -1,0 +1,66 @@
+title: Indicator Removal via Forced File Deletion — del /f and Remove-Item -Force
+id: f8a9b0c1-d2e3-4567-5678-901234567890
+status: experimental
+description: |
+    Detects forced deletion of files from staging or temp directories commonly
+    used to cover tracks after malware execution. Monitors both Sysmon EID 23
+    (FileDelete with ArchiveDirectory) and process creation events for deletion
+    commands in sensitive paths.
+    Technique T1070.004 — Indicator Removal: File Deletion.
+    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.
+references:
+    - https://attack.mitre.org/techniques/T1070/004/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1070.004
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.defense-evasion
+    - attack.t1070.004
+logsource:
+    product: windows
+    service: sysmon
+detection:
+    selection_file_delete:
+        EventID: 23
+        TargetFilename|contains:
+            - '\Windows\Temp\'
+            - '\AppData\Local\Temp\'
+            - '\Users\Public\'
+            - '\PerfLogs\'
+        TargetFilename|endswith:
+            - '.exe'
+            - '.dll'
+            - '.ps1'
+            - '.bat'
+            - '.vbs'
+            - '.log'
+    selection_cmd_del:
+        EventID: 1
+        Image|endswith: '\cmd.exe'
+        CommandLine|contains:
+            - 'del /f /q'
+            - 'rd /s /q'
+            - 'rmdir /s /q'
+    selection_ps_remove:
+        EventID: 1
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains:
+            - 'Remove-Item'
+        CommandLine|contains:
+            - '-Force'
+            - '-Recurse'
+    condition: selection_file_delete or selection_cmd_del or selection_ps_remove
+falsepositives:
+    - Legitimate cleanup scripts in software deployment pipelines
+    - Temporary file cleanup by browsers and update mechanisms
+    - MSI installer cleanup phases
+level: medium
+fields:
+    - ComputerName
+    - User
+    - TargetFilename
+    - Image
+    - CommandLine

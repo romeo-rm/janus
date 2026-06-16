@@ -1,0 +1,50 @@
+title: Suspicious Process Injection via CreateRemoteThread
+id: d0e1f2a3-b4c5-6789-def0-123456789012
+status: experimental
+description: |
+    Detects process injection via CreateRemoteThread targeting common host
+    processes. Sysmon EID 8 fires when a thread is created in a remote process.
+    A null StartModule indicates shellcode injection (no backing DLL on disk).
+    Technique T1055 — Process Injection.
+    ACC Hackathon 2026 — Final MVP expansion.
+references:
+    - https://attack.mitre.org/techniques/T1055/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1055
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.defense-evasion
+    - attack.privilege-escalation
+    - attack.t1055
+logsource:
+    product: windows
+    service: sysmon
+detection:
+    selection:
+        EventID: 8
+        TargetImage|endswith:
+            - '\notepad.exe'
+            - '\explorer.exe'
+            - '\svchost.exe'
+            - '\RuntimeBroker.exe'
+            - '\SearchIndexer.exe'
+            - '\spoolsv.exe'
+        StartModule: ''
+    filter_security_software:
+        SourceImage|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+            - 'C:\Program Files\Windows Defender\'
+    condition: selection and not filter_security_software
+falsepositives:
+    - Windows Defender ATP and EDR products injecting monitoring threads
+    - Anti-cheat software in gaming environments
+level: high
+fields:
+    - ComputerName
+    - User
+    - SourceImage
+    - TargetImage
+    - StartAddress
+    - StartModule

@@ -1,0 +1,53 @@
+title: File and Directory Discovery via Built-in Enumeration Tools
+id: a3b4c5d6-e7f8-9012-0123-456789012345
+status: experimental
+description: |
+    Detects broad file and directory enumeration using native Windows tools such
+    as dir /s, tree /f, and PowerShell Get-ChildItem with Recurse. Adversaries
+    use these commands during discovery to locate valuable data before collection
+    or exfiltration.
+    Technique T1083 — File and Directory Discovery.
+    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.
+references:
+    - https://attack.mitre.org/techniques/T1083/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1083
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.discovery
+    - attack.t1083
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_dir:
+        EventID: 1
+        Image|endswith: '\cmd.exe'
+        CommandLine|contains:
+            - 'dir /s'
+            - 'dir /b /s'
+            - 'tree /f'
+    selection_ps_recurse:
+        EventID: 1
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains:
+            - 'Get-ChildItem'
+            - 'gci '
+        CommandLine|contains:
+            - '-Recurse'
+            - '-rec '
+    condition: selection_dir or selection_ps_recurse
+falsepositives:
+    - Backup software performing file enumeration before backup
+    - Antivirus full-system scans
+    - Developer IDE project indexing operations
+    - Robocopy / xcopy mirror operations
+level: low
+fields:
+    - ComputerName
+    - User
+    - CommandLine
+    - ParentImage

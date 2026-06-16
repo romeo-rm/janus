@@ -1,0 +1,64 @@
+title: Data Exfiltration over Non-Standard Protocol and Port
+id: c1d2e3f4-a5b6-7890-8901-234567890123
+status: experimental
+description: |
+    Detects outbound network connections from non-browser, non-system processes
+    targeting uncommon ports associated with exfiltration channels: FTP (21),
+    raw SSH (22 from non-SSH clients), and common C2/exfil ports (4444, 6667,
+    8443, 9001). Monitors Sysmon EID 3 (NetworkConnect).
+    Technique T1048 — Exfiltration Over Alternative Protocol.
+    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.
+references:
+    - https://attack.mitre.org/techniques/T1048/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1048
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.exfiltration
+    - attack.t1048
+logsource:
+    product: windows
+    service: sysmon
+detection:
+    selection:
+        EventID: 3
+        Initiated: 'true'
+        DestinationPort:
+            - 21
+            - 4444
+            - 6667
+            - 6666
+            - 8443
+            - 9001
+            - 1337
+    filter_browsers:
+        Image|endswith:
+            - '\chrome.exe'
+            - '\firefox.exe'
+            - '\msedge.exe'
+            - '\iexplore.exe'
+            - '\opera.exe'
+            - '\brave.exe'
+    filter_system:
+        Image|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+    filter_known_ftp:
+        Image|endswith:
+            - '\filezilla.exe'
+            - '\winscp.exe'
+        DestinationPort: 21
+    condition: selection and not filter_browsers and not filter_system and not filter_known_ftp
+falsepositives:
+    - Authorized SSH/FTP clients used by IT teams
+    - VPN clients and specialized industrial software
+    - Legitimate remote management tools on unusual ports
+level: high
+fields:
+    - ComputerName
+    - User
+    - Image
+    - DestinationIp
+    - DestinationPort
+    - Protocol

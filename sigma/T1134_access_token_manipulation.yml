@@ -1,0 +1,58 @@
+title: Access Token Manipulation — Privilege Enumeration and Impersonation
+id: e1f2a3b4-c5d6-7890-ef01-234567890123
+status: experimental
+description: |
+    Detects access token manipulation by monitoring privilege enumeration via
+    whoami /priv and execution of known token impersonation tools.
+    Full token manipulation also produces Sysmon EID 1 events when spawning
+    processes under impersonated tokens.
+    Technique T1134 — Access Token Manipulation.
+    ACC Hackathon 2026 — Final MVP expansion.
+references:
+    - https://attack.mitre.org/techniques/T1134/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1134
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.privilege-escalation
+    - attack.defense-evasion
+    - attack.t1134
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_whoami_priv:
+        EventID: 1
+        Image|endswith: '\whoami.exe'
+        CommandLine|contains:
+            - '/priv'
+            - '/all'
+    selection_token_tools:
+        EventID: 1
+        Image|endswith:
+            - '\incognito.exe'
+            - '\juicy-potato.exe'
+            - '\sweet-potato.exe'
+            - '\print-spoofer.exe'
+    selection_ps_impersonation:
+        EventID: 1
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains:
+            - 'ImpersonateNamedPipeClient'
+            - 'DuplicateTokenEx'
+            - 'LogonUser'
+            - 'CreateProcessWithTokenW'
+    condition: selection_whoami_priv or selection_token_tools or selection_ps_impersonation
+falsepositives:
+    - Administrative scripts checking current user privileges
+    - Helpdesk tools enumerating user rights for troubleshooting
+level: medium
+fields:
+    - ComputerName
+    - User
+    - CommandLine
+    - ParentImage
+    - ParentCommandLine

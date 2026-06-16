@@ -1,0 +1,56 @@
+title: Suspicious Email Attachment Dropped — Spearphishing
+id: c9d0e1f2-a3b4-5678-cdef-012345678901
+status: experimental
+description: |
+    Detects suspicious file creation in common download locations matching
+    office document or script extensions typically delivered via phishing email.
+    Technique T1566.001 was added in the ACC Hackathon Final MVP expansion.
+    Atomic Red Team Test 1 creates a malicious attachment file; Sysmon EID 11
+    captures the FileCreate event.
+references:
+    - https://attack.mitre.org/techniques/T1566/001/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1566.001
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.initial-access
+    - attack.t1566.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        EventID: 11
+        TargetFilename|contains:
+            - '\Downloads\'
+            - '\AppData\Local\Temp\'
+            - '\Users\Public\'
+        TargetFilename|endswith:
+            - '.docm'
+            - '.xlsm'
+            - '.pptm'
+            - '.hta'
+            - '.js'
+            - '.vbs'
+            - '.wsf'
+            - '.lnk'
+            - '.ps1'
+            - '.iso'
+            - '.img'
+    filter_legitimate:
+        Image|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Program Files\Microsoft Office\'
+            - 'C:\Program Files (x86)\Microsoft Office\'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Legitimate document downloads from corporate email clients
+    - IT distribution of authorized scripts via email
+    - Browser download of office files from trusted portals
+level: high
+fields:
+    - ComputerName
+    - User
+    - TargetFilename
+    - Image

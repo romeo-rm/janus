@@ -1,0 +1,47 @@
+title: Local Group Enumeration — net localgroup and PowerShell Equivalents
+id: b4c5d6e7-f8a9-0123-1234-567890123456
+status: experimental
+description: |
+    Detects enumeration of local Windows groups via net localgroup and PowerShell
+    Get-LocalGroup. Adversaries query local groups immediately after initial access
+    to identify privileged accounts and plan privilege escalation.
+    Technique T1069.001 — Permission Groups Discovery: Local Groups.
+    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.
+references:
+    - https://attack.mitre.org/techniques/T1069/001/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1069.001
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.discovery
+    - attack.t1069.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_net:
+        EventID: 1
+        Image|endswith:
+            - '\net.exe'
+            - '\net1.exe'
+        CommandLine|contains: 'localgroup'
+    selection_ps:
+        EventID: 1
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains:
+            - 'Get-LocalGroup'
+            - 'Get-LocalGroupMember'
+    condition: selection_net or selection_ps
+falsepositives:
+    - System administration scripts performing group audits
+    - Active Directory management tools (RSAT)
+    - SCCM compliance baseline checks
+level: low
+fields:
+    - ComputerName
+    - User
+    - CommandLine
+    - ParentImage

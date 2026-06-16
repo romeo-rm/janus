@@ -20,7 +20,7 @@ from navigator import generate_navigator_layer, suggest_sigma_rules
 urllib3.disable_warnings()
 
 # ── Config ────────────────────────────────────────────────────────────────────
-WAZUH_HOST     = "192.168.70.129"
+WAZUH_HOST     = "192.168.10.133"
 WAZUH_API_URL  = f"https://{WAZUH_HOST}:55000"
 WAZUH_IDX_URL  = "https://localhost:9200"
 WAZUH_API_USER = "wazuh-wui"
@@ -28,9 +28,9 @@ WAZUH_API_PASS = "G*9npIu.8*tJBLwCbK+vhtCUIjkMdMCh"
 WAZUH_IDX_USER = "admin"
 WAZUH_IDX_PASS = "h0Df6PdNeWpJkstR6Xi7cS+.OLy+tQlh"
 
-WIN10_IP       = "192.168.70.150"
-WIN10_USER     = "orxan"
-WIN10_PASS     = "kali"
+WIN10_IP       = "192.168.10.134"
+WIN10_USER     = "target"
+WIN10_PASS     = "target"
 
 GEMINI_KEY     = "your-gemini-api-key-here"
 _gemini        = genai.Client(api_key=GEMINI_KEY)
@@ -40,29 +40,80 @@ DETECTION_WAIT = 8
 
 # ── Kill Chain ────────────────────────────────────────────────────────────────
 KILL_CHAIN = [
-    {"id": "T1059.001", "name": "PowerShell Execution",         "tactic": "execution",          "test": 1},
-    {"id": "T1547.001", "name": "Registry Run Key Persistence", "tactic": "persistence",         "test": 1},
-    {"id": "T1003.001", "name": "LSASS Dump (Mimikatz)",        "tactic": "credential-access",   "test": 1},
-    {"id": "T1550.002", "name": "Pass-the-Hash",                "tactic": "lateral-movement",    "test": 1, "timeout": 15},
-    {"id": "T1071.001", "name": "C2 Beacon (HTTP)",             "tactic": "command-and-control", "test": 1},
-    {"id": "T1490",     "name": "Shadow Copy Deletion",         "tactic": "impact",              "test": 1},
-    {"id": "T1486",     "name": "File Encryption (Ransomware)", "tactic": "impact",              "test": 2},
+    # ── Initial Access ────────────────────────────────────────────────────
+    {"id": "T1566.001", "name": "Spearphishing Attachment",        "tactic": "initial-access",       "test": 1},
+    # ── Execution ─────────────────────────────────────────────────────────
+    {"id": "T1059.001", "name": "PowerShell Execution",            "tactic": "execution",            "test": 1},
+    # ── Persistence ───────────────────────────────────────────────────────
+    {"id": "T1547.001", "name": "Registry Run Key Persistence",    "tactic": "persistence",          "test": 1},
+    # ── Privilege Escalation ──────────────────────────────────────────────
+    {"id": "T1055",     "name": "Process Injection",               "tactic": "defense-evasion",      "test": 1},
+    {"id": "T1134",     "name": "Access Token Manipulation",       "tactic": "privilege-escalation", "test": 1},
+    # ── Defense Evasion ───────────────────────────────────────────────────
+    {"id": "T1562.001", "name": "Disable Security Tools",          "tactic": "defense-evasion",      "test": 1},
+    {"id": "T1027",     "name": "Obfuscated Files or Information", "tactic": "defense-evasion",      "test": 1},
+    {"id": "T1112",     "name": "Modify Registry",                 "tactic": "defense-evasion",      "test": 1},
+    # ── Credential Access ─────────────────────────────────────────────────
+    {"id": "T1003.001", "name": "LSASS Dump (Mimikatz)",           "tactic": "credential-access",    "test": 1},
+    # ── Discovery ─────────────────────────────────────────────────────────
+    {"id": "T1082",     "name": "System Information Discovery",    "tactic": "discovery",            "test": 1},
+    {"id": "T1083",     "name": "File and Directory Discovery",    "tactic": "discovery",            "test": 1},
+    {"id": "T1069.001", "name": "Local Groups Discovery",          "tactic": "discovery",            "test": 1},
+    {"id": "T1016",     "name": "Network Configuration Discovery", "tactic": "discovery",            "test": 1},
+    {"id": "T1018",     "name": "Remote System Discovery",         "tactic": "discovery",            "test": 1},
+    # ── Lateral Movement ──────────────────────────────────────────────────
+    {"id": "T1550.002", "name": "Pass-the-Hash",                   "tactic": "lateral-movement",     "test": 1, "timeout": 15},
+    # ── Command & Control ─────────────────────────────────────────────────
+    {"id": "T1071.001", "name": "C2 Beacon (HTTP)",                "tactic": "command-and-control",  "test": 1},
+    # ── Exfiltration ──────────────────────────────────────────────────────
+    {"id": "T1048",     "name": "Exfiltration over Alt Protocol",  "tactic": "exfiltration",         "test": 1},
+    # ── Cleanup / Defense Evasion ─────────────────────────────────────────
+    {"id": "T1070.004", "name": "Indicator Removal: File Deletion","tactic": "defense-evasion",      "test": 1},
+    # ── Impact ────────────────────────────────────────────────────────────
+    {"id": "T1490",     "name": "Shadow Copy Deletion",            "tactic": "impact",               "test": 1},
+    {"id": "T1486",     "name": "File Encryption (Ransomware)",    "tactic": "impact",               "test": 2},
 ]
 
 # ── Sysmon rule groups per technique (string or list = OR query) ───────────────
 TECHNIQUE_GROUPS = {
+    "T1566.001": "sysmon_eid11_detections",
     "T1059.001": "sysmon_eid1_detections",
-    "T1547.001": ["sysmon_eid12", "sysmon_eid13", "sysmon_eid12_detections", "sysmon_eid13_detections"],
+    "T1547.001": ["sysmon_eid13", "sysmon_eid13_detections"],
+    "T1055":     "sysmon_eid8_detections",
+    "T1134":     "sysmon_eid1_detections",
+    "T1562.001": "sysmon_eid1_detections",
+    "T1027":     "sysmon_eid1_detections",
+    "T1112":     ["sysmon_eid13", "sysmon_eid13_detections"],
     "T1003.001": "sysmon_eid1_detections",
+    "T1082":     "sysmon_eid1_detections",
+    "T1083":     "sysmon_eid1_detections",
+    "T1069.001": "sysmon_eid1_detections",
+    "T1016":     "sysmon_eid1_detections",
+    "T1018":     "sysmon_eid1_detections",
     "T1550.002": "authentication_success",
-    "T1071.001": "sysmon_eid1_detections",
+    "T1071.001": "sysmon_eid3_detections",
+    "T1048":     "sysmon_eid3_detections",
+    "T1070.004": "sysmon_eid1_detections",
     "T1490":     "sysmon_eid1_detections",
-    "T1486":     "sysmon_eid1_detections",
+    "T1486":     "sysmon_eid11_detections",
 }
 
 # Keywords used as fallback description search when group query returns 0
 TECHNIQUE_DESC_KEYWORDS = {
     "T1547.001": ["registry", "run key", "CurrentVersion\\Run"],
+    "T1082":     ["systeminfo", "hostname", "T1082"],
+    "T1083":     ["dir /s", "Get-ChildItem", "T1083"],
+    "T1069.001": ["localgroup", "T1069"],
+    "T1016":     ["ipconfig", "arp", "netstat", "T1016"],
+    "T1018":     ["net view", "T1018"],
+    "T1562.001": ["Set-MpPreference", "DisableRealtimeMonitoring", "T1562"],
+    "T1027":     ["EncodedCommand", "-enc", "T1027"],
+    "T1112":     ["reg add", "Set-ItemProperty", "T1112"],
+    "T1048":     ["exfil", "T1048"],
+    "T1070.004": ["del /f", "Remove-Item", "T1070"],
+    "T1566.001": ["spearphishing", "T1566"],
+    "T1055":     ["CreateRemoteThread", "T1055"],
+    "T1134":     ["whoami", "T1134"],
 }
 
 # ── Flask + SocketIO ──────────────────────────────────────────────────────────
@@ -173,7 +224,16 @@ CUSTOM_COMMANDS = {
         '  Write-Host \"Encrypted: $($f.Name)\" '
         '}'
         '"'
-    )
+    ),
+    "T1082":     'powershell.exe -Command "systeminfo; hostname"',
+    "T1083":     'powershell.exe -Command "Get-ChildItem C:\\ -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 30 | Format-Table Name"',
+    "T1069.001": 'cmd.exe /c "net localgroup"',
+    "T1016":     'cmd.exe /c "ipconfig /all && arp -a"',
+    "T1018":     'cmd.exe /c "net view 2>nul & ping -n 1 192.168.10.133"',
+    "T1027":     'powershell.exe -EncodedCommand SQBuAHYAbwBrAGUALQBFAHgAcAByAGUAcwBzAGkAbwBuACAAIgBoAGUAbABsAG8AIgA=',
+    "T1112":     'cmd.exe /c "reg add HKCU\\Software\\JanusTest /v TestValue /t REG_SZ /d TestData /f"',
+    "T1070.004": 'cmd.exe /c "echo test > %TEMP%\\janus_test.txt && del /f /q %TEMP%\\janus_test.txt"',
+    "T1562.001": 'powershell.exe -Command "Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue; Write-Host done"',
 }
 
 def run_atomic_on_win10(technique_id, test_num=1, atomic_timeout=60):

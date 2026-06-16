@@ -1,0 +1,41 @@
+title: Network Configuration Discovery via Built-in Windows Tools
+id: c5d6e7f8-a9b0-1234-2345-678901234567
+status: experimental
+description: |
+    Detects system network configuration discovery using native tools: ipconfig,
+    arp, route, netstat, nbtstat. Adversaries collect network topology data to
+    identify targets for lateral movement and plan exfiltration paths.
+    Technique T1016 — System Network Configuration Discovery.
+    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.
+references:
+    - https://attack.mitre.org/techniques/T1016/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1016
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.discovery
+    - attack.t1016
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        EventID: 1
+        Image|endswith:
+            - '\ipconfig.exe'
+            - '\arp.exe'
+            - '\route.exe'
+            - '\netstat.exe'
+            - '\nbtstat.exe'
+    condition: selection
+falsepositives:
+    - Network troubleshooting by IT helpdesk and system administrators
+    - Monitoring agents (Nagios, SolarWinds) collecting network interface state
+    - Automated network diagnostics in build pipelines
+level: low
+fields:
+    - ComputerName
+    - User
+    - CommandLine
+    - ParentImage

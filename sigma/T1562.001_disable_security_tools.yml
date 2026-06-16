@@ -1,0 +1,58 @@
+title: Windows Defender Disabled via Set-MpPreference or sc.exe
+id: e7f8a9b0-c1d2-3456-4567-890123456789
+status: experimental
+description: |
+    Detects attempts to disable Windows Defender real-time protection using
+    PowerShell Set-MpPreference or the sc.exe service control utility.
+    Adversaries disable AV before dropping malware payloads to avoid detection.
+    Technique T1562.001 — Impair Defenses: Disable or Modify Tools.
+    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.
+references:
+    - https://attack.mitre.org/techniques/T1562/001/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1562.001
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.defense-evasion
+    - attack.t1562.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_set_mp_pref:
+        EventID: 1
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains: 'Set-MpPreference'
+        CommandLine|contains:
+            - '-DisableRealtimeMonitoring'
+            - '-DisableBehaviorMonitoring'
+            - '-DisableIOAVProtection'
+            - '-DisableScriptScanning'
+            - '-DisableAntivirusProtection'
+    selection_sc_stop:
+        EventID: 1
+        Image|endswith: '\sc.exe'
+        CommandLine|contains:
+            - 'stop WinDefend'
+            - 'stop SecurityHealthService'
+            - 'config WinDefend start= disabled'
+    selection_reg_disable:
+        EventID: 1
+        Image|endswith: '\reg.exe'
+        CommandLine|contains:
+            - 'DisableAntiSpyware'
+            - 'DisableRealtimeMonitoring'
+            - 'DisableAntivirusProtection'
+    condition: selection_set_mp_pref or selection_sc_stop or selection_reg_disable
+falsepositives:
+    - Security team temporarily disabling AV for authorized testing
+    - System re-imaging and deployment processes
+level: critical
+fields:
+    - ComputerName
+    - User
+    - CommandLine
+    - ParentImage

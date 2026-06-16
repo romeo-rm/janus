@@ -1,0 +1,49 @@
+title: Suspicious Registry Modification of Security and Policy Keys
+id: b0c1d2e3-f4a5-6789-7890-123456789012
+status: experimental
+description: |
+    Detects modifications to Windows Registry keys controlling security policies,
+    service configurations, and execution options via Sysmon EID 13 (RegistryValueSet).
+    Adversaries modify registry to persist, disable defenses, or set up IFEO debugger
+    hijacks.
+    Technique T1112 — Modify Registry.
+    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.
+references:
+    - https://attack.mitre.org/techniques/T1112/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1112
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.defense-evasion
+    - attack.t1112
+logsource:
+    product: windows
+    service: sysmon
+detection:
+    selection:
+        EventID: 13
+        TargetObject|contains:
+            - '\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\'
+            - '\SYSTEM\CurrentControlSet\Services\'
+            - '\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\'
+            - '\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders\'
+            - '\SOFTWARE\Policies\Microsoft\Windows Defender\'
+    filter_installer:
+        Image|contains:
+            - 'msiexec.exe'
+            - 'TrustedInstaller'
+            - 'WinSxS'
+        User|contains: 'SYSTEM'
+    condition: selection and not filter_installer
+falsepositives:
+    - Software installation and configuration via MSI packages
+    - Group Policy application by svchost / gpsvc
+    - Windows Update applying policy changes
+level: medium
+fields:
+    - ComputerName
+    - User
+    - TargetObject
+    - Details
+    - Image

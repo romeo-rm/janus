@@ -1,0 +1,58 @@
+title: PowerShell Command Obfuscation via Base64 EncodedCommand
+id: a9b0c1d2-e3f4-5678-6789-012345678901
+status: experimental
+description: |
+    Detects PowerShell launched with the -EncodedCommand (-enc, -ec) flag, which
+    is the primary method adversaries use to pass Base64-encoded payloads to evade
+    command-line logging and signature-based AV. Also detects string concatenation
+    patterns and character substitution commonly used by Invoke-Obfuscation.
+    Technique T1027 — Obfuscated Files or Information.
+    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.
+references:
+    - https://attack.mitre.org/techniques/T1027/
+    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1027
+    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma
+author: Janus Team — ACC Hackathon 2026
+date: 2026-06-16
+tags:
+    - attack.defense-evasion
+    - attack.t1027
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_encoded_cmd:
+        EventID: 1
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains:
+            - '-EncodedCommand'
+            - ' -enc '
+            - ' -ec '
+    selection_char_obfuscation:
+        EventID: 1
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains:
+            - '[char]'
+            - '[Convert]::FromBase64String'
+            - 'IEX('
+            - 'Invoke-Expression'
+        CommandLine|contains:
+            - '0x'
+    filter_known_tools:
+        CommandLine|contains:
+            - 'SQBuAHYAbwBrAGUALQBXAGUAYgBSAGUAcQB1AGUAcwB0'
+    condition: (selection_encoded_cmd or selection_char_obfuscation) and not filter_known_tools
+falsepositives:
+    - Legitimate PowerShell automation with encoded parameters for Unicode support
+    - Management tools (PDQ Deploy, ConnectWise) using encoded commands
+    - Some vendor software management scripts
+level: medium
+fields:
+    - ComputerName
+    - User
+    - CommandLine
+    - ParentImage

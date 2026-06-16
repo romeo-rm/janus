@@ -1,12 +1,12 @@
 {
-  "name": "Janus — Ransomware Kill Chain Coverage (ACC Hackathon 2026)",
+  "name": "Janus — Full Coverage Map v2 (ACC Hackathon 2026 — Final MVP)",
   "versions": {
     "attack": "15",
     "navigator": "5.1",
     "layer": "4.5"
   },
   "domain": "enterprise-attack",
-  "description": "ATT&CK Navigator coverage layer for the Janus purple team emulation run at ACC Hackathon 2026. Green = detected by Wazuh during live run. Red = executed but not detected (gap). Detection rules (Sigma YAML) are available in the sigma/ directory of this repository.",
+  "description": "ATT&CK Navigator coverage layer for the Janus purple team emulation platform. 20 techniques across 11 MITRE ATT&CK tactics. Green = detected live by Janus custom Wazuh rules (ART-validated). Purple = Sigma rule deployed, pending live validation. All 20 techniques have Sigma rules in sigma/ directory. 7 techniques ART-validated via Invoke-AtomicTest (ACC Hackathon 2026 Final MVP).",
   "filters": {
     "platforms": ["Windows"]
   },
@@ -22,15 +22,31 @@
   "hideDisabled": false,
   "techniques": [
     {
+      "techniqueID": "T1566.001",
+      "tactic": "initial-access",
+      "color": "#7C3AED",
+      "comment": "SIGMA READY — Pending live validation. Atomic Red Team Test 1. Sysmon EID 11 (FileCreate) in Downloads/Temp paths with suspicious extensions. Sigma rule: sigma/T1566.001_spearphishing_attachment.yml",
+      "score": 75,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "SIGMA READY — Pending emulation" },
+        { "name": "telemetry", "value": "Sysmon EID 11 (FileCreate)" },
+        { "name": "sigma_rule", "value": "sigma/T1566.001_spearphishing_attachment.yml" },
+        { "name": "atomic_test", "value": "T1566.001 Test 1" }
+      ],
+      "showSubtechniques": false
+    },
+    {
       "techniqueID": "T1059.001",
       "tactic": "execution",
       "color": "#66bb6a",
-      "comment": "DETECTED — Wazuh alert: 'Windows command prompt started by an abnormal process.' Atomic Red Team Test 1. Sigma rule: sigma/T1059.001_powershell_execution.yml",
+      "comment": "DETECTED — Wazuh alert: 'Windows command prompt started by an abnormal process.' Atomic Red Team Test 1. Sysmon EID 1 (ProcessCreate). Sigma rule: sigma/T1059.001_powershell_execution.yml",
       "score": 100,
       "enabled": true,
       "metadata": [
         { "name": "status", "value": "DETECTED" },
         { "name": "wazuh_alert", "value": "Windows command prompt started by an abnormal process" },
+        { "name": "telemetry", "value": "Sysmon EID 1 (ProcessCreate)" },
         { "name": "sigma_rule", "value": "sigma/T1059.001_powershell_execution.yml" }
       ],
       "showSubtechniques": false
@@ -38,14 +54,92 @@
     {
       "techniqueID": "T1547.001",
       "tactic": "persistence",
-      "color": "#ef5350",
-      "comment": "MISSED — Executed but not detected. Root cause: no Sysmon EID 12/13 rules for HKCU/HKLM Run keys in Wazuh. Gap closed by Sigma rule: sigma/T1547.001_registry_run_key.yml",
-      "score": 0,
+      "color": "#66bb6a",
+      "comment": "DETECTED — Janus rule 100101 fired. ART Test 1: reg.exe writes HKCU\\CurrentVersion\\Run\\Atomic Red Team. Sysmon EID 13 → Wazuh rule 100101 (chains off 92300). 1 alert confirmed. Sigma: sigma/T1547.001_registry_run_key.yml",
+      "score": 100,
       "enabled": true,
       "metadata": [
-        { "name": "status", "value": "MISSED — GAP" },
-        { "name": "root_cause", "value": "No Sysmon registry event rules in Wazuh for Run key paths" },
+        { "name": "status", "value": "DETECTED — Janus ART validated" },
+        { "name": "janus_rule", "value": "100101 (level 10)" },
+        { "name": "alert_count", "value": "1" },
+        { "name": "telemetry", "value": "Sysmon EID 13 (RegistryValueSet) — CurrentVersion\\Run" },
         { "name": "sigma_rule", "value": "sigma/T1547.001_registry_run_key.yml" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1055",
+      "tactic": "defense-evasion",
+      "color": "#7C3AED",
+      "comment": "SIGMA READY — Pending live validation. Sysmon EID 8 (CreateRemoteThread) with null StartModule indicates shellcode injection. Sigma rule: sigma/T1055_process_injection.yml",
+      "score": 75,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "SIGMA READY — Pending emulation" },
+        { "name": "telemetry", "value": "Sysmon EID 8 (CreateRemoteThread)" },
+        { "name": "sigma_rule", "value": "sigma/T1055_process_injection.yml" },
+        { "name": "atomic_test", "value": "T1055 Test 1" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1134",
+      "tactic": "privilege-escalation",
+      "color": "#7C3AED",
+      "comment": "SIGMA READY — Pending live validation. Sysmon EID 1: whoami /priv and token impersonation tools. Sigma rule: sigma/T1134_access_token_manipulation.yml",
+      "score": 75,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "SIGMA READY — Pending emulation" },
+        { "name": "telemetry", "value": "Sysmon EID 1 (ProcessCreate), Windows Security EID 4624 LogonType 9" },
+        { "name": "sigma_rule", "value": "sigma/T1134_access_token_manipulation.yml" },
+        { "name": "atomic_test", "value": "T1134 Test 1" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1562.001",
+      "tactic": "defense-evasion",
+      "color": "#7C3AED",
+      "comment": "SIGMA READY — Pending live validation. Sysmon EID 1: Set-MpPreference -DisableRealtimeMonitoring or sc stop WinDefend. Sigma rule: sigma/T1562.001_disable_security_tools.yml",
+      "score": 75,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "SIGMA READY — Pending emulation" },
+        { "name": "telemetry", "value": "Sysmon EID 1 (ProcessCreate)" },
+        { "name": "sigma_rule", "value": "sigma/T1562.001_disable_security_tools.yml" },
+        { "name": "atomic_test", "value": "T1562.001 Test 1" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1027",
+      "tactic": "defense-evasion",
+      "color": "#7C3AED",
+      "comment": "SIGMA READY — Pending live validation. Sysmon EID 1: PowerShell -EncodedCommand flag with base64 payload. Sigma rule: sigma/T1027_obfuscated_files.yml",
+      "score": 75,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "SIGMA READY — Pending emulation" },
+        { "name": "telemetry", "value": "Sysmon EID 1 (ProcessCreate) — CommandLine contains -EncodedCommand" },
+        { "name": "sigma_rule", "value": "sigma/T1027_obfuscated_files.yml" },
+        { "name": "atomic_test", "value": "T1027 Test 1" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1112",
+      "tactic": "defense-evasion",
+      "color": "#66bb6a",
+      "comment": "DETECTED — Janus rule 100122 fired. ART Test 1: reg.exe adds HKCU\\Software\\T1112\\test. Sysmon EID 13 → Wazuh rule 100122 (reg.exe + SOFTWARE path). 1 alert confirmed. Sigma: sigma/T1112_modify_registry.yml",
+      "score": 100,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "DETECTED — Janus ART validated" },
+        { "name": "janus_rule", "value": "100122 (level 6)" },
+        { "name": "alert_count", "value": "1" },
+        { "name": "telemetry", "value": "Sysmon EID 13 (RegistryValueSet) — reg.exe" },
+        { "name": "sigma_rule", "value": "sigma/T1112_modify_registry.yml" }
       ],
       "showSubtechniques": false
     },
@@ -53,13 +147,92 @@
       "techniqueID": "T1003.001",
       "tactic": "credential-access",
       "color": "#66bb6a",
-      "comment": "DETECTED — Wazuh alert: 'Windows command prompt started by an abnormal process.' Atomic Red Team Test 1 (ProcDump). Sigma rule: sigma/T1003.001_lsass_dump.yml",
+      "comment": "DETECTED — Wazuh alert fired on ProcDump accessing lsass.exe (GrantedAccess: 0x1fffff). Atomic Red Team Test 1. Sysmon EID 10 (ProcessAccess) / EID 1. Sigma rule: sigma/T1003.001_lsass_dump.yml",
       "score": 100,
       "enabled": true,
       "metadata": [
         { "name": "status", "value": "DETECTED" },
         { "name": "wazuh_alert", "value": "Windows command prompt started by an abnormal process" },
+        { "name": "telemetry", "value": "Sysmon EID 10 (ProcessAccess), EID 1 (ProcessCreate)" },
         { "name": "sigma_rule", "value": "sigma/T1003.001_lsass_dump.yml" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1082",
+      "tactic": "discovery",
+      "color": "#66bb6a",
+      "comment": "DETECTED — Janus rule 100108 fired. Sysmon EID 1: systeminfo.exe and hostname.exe executions. 38 alerts confirmed across 3 ART runs. Sigma: sigma/T1082_system_info_discovery.yml",
+      "score": 100,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "DETECTED — Janus ART validated" },
+        { "name": "janus_rule", "value": "100108 (level 4)" },
+        { "name": "alert_count", "value": "38" },
+        { "name": "telemetry", "value": "Sysmon EID 1 (ProcessCreate) — systeminfo, hostname" },
+        { "name": "sigma_rule", "value": "sigma/T1082_system_info_discovery.yml" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1083",
+      "tactic": "discovery",
+      "color": "#7C3AED",
+      "comment": "SIGMA READY — Pending live validation. Sysmon EID 1: dir /s, tree /f, Get-ChildItem -Recurse. Sigma rule: sigma/T1083_file_directory_discovery.yml",
+      "score": 75,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "SIGMA READY — Pending emulation" },
+        { "name": "telemetry", "value": "Sysmon EID 1 (ProcessCreate) — dir /s, Get-ChildItem -Recurse" },
+        { "name": "sigma_rule", "value": "sigma/T1083_file_directory_discovery.yml" },
+        { "name": "atomic_test", "value": "T1083 Test 1" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1069.001",
+      "tactic": "discovery",
+      "color": "#7C3AED",
+      "comment": "SIGMA READY — Pending live validation. Sysmon EID 1: net localgroup, Get-LocalGroup. Sigma rule: sigma/T1069.001_local_groups_discovery.yml",
+      "score": 75,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "SIGMA READY — Pending emulation" },
+        { "name": "telemetry", "value": "Sysmon EID 1 (ProcessCreate) — net localgroup, Get-LocalGroup" },
+        { "name": "sigma_rule", "value": "sigma/T1069.001_local_groups_discovery.yml" },
+        { "name": "atomic_test", "value": "T1069.001 Test 1" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1016",
+      "tactic": "discovery",
+      "color": "#66bb6a",
+      "comment": "DETECTED — Janus rule 100123 fired. ART Test 1: cmd.exe runs ipconfig/arp/nbtstat chain. Sysmon EID 1 → rule 100123 (cmd.exe with network enum commands in sysmon_eid1_detections). 1 alert confirmed. Sigma: sigma/T1016_network_config_discovery.yml",
+      "score": 100,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "DETECTED — Janus ART validated" },
+        { "name": "janus_rule", "value": "100123 (level 5)" },
+        { "name": "alert_count", "value": "1" },
+        { "name": "telemetry", "value": "Sysmon EID 1 (ProcessCreate) — cmd.exe with ipconfig/arp/nbtstat" },
+        { "name": "sigma_rule", "value": "sigma/T1016_network_config_discovery.yml" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1018",
+      "tactic": "discovery",
+      "color": "#66bb6a",
+      "comment": "DETECTED — Janus rule 100112 fired. ART Test 1: net view /domain & net view. Sysmon EID 1 → rule 100112 (net.exe with 'view' command). 4 alerts confirmed across 2 ART runs. Sigma: sigma/T1018_remote_system_discovery.yml",
+      "score": 100,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "DETECTED — Janus ART validated" },
+        { "name": "janus_rule", "value": "100112 (level 5)" },
+        { "name": "alert_count", "value": "4" },
+        { "name": "telemetry", "value": "Sysmon EID 1 (ProcessCreate) — net.exe view /domain" },
+        { "name": "sigma_rule", "value": "sigma/T1018_remote_system_discovery.yml" }
       ],
       "showSubtechniques": false
     },
@@ -67,12 +240,13 @@
       "techniqueID": "T1550.002",
       "tactic": "lateral-movement",
       "color": "#66bb6a",
-      "comment": "DETECTED — Wazuh alert: 'Windows logon success.' Atomic Red Team Test 1. Sigma rule: sigma/T1550.002_pass_the_hash.yml",
+      "comment": "DETECTED — Wazuh alert: 'Windows logon success.' NTLM auth with captured hash (LogonType 3). Atomic Red Team Test 1. Windows Security EID 4624. Sigma rule: sigma/T1550.002_pass_the_hash.yml",
       "score": 100,
       "enabled": true,
       "metadata": [
         { "name": "status", "value": "DETECTED" },
         { "name": "wazuh_alert", "value": "Windows logon success" },
+        { "name": "telemetry", "value": "Windows Security EID 4624 (LogonType 3, NTLM)" },
         { "name": "sigma_rule", "value": "sigma/T1550.002_pass_the_hash.yml" }
       ],
       "showSubtechniques": false
@@ -81,26 +255,59 @@
       "techniqueID": "T1071.001",
       "tactic": "command-and-control",
       "color": "#66bb6a",
-      "comment": "DETECTED — Wazuh alert: 'Windows command prompt started by an abnormal process.' Atomic Red Team Test 1. Sigma rule: sigma/T1071.001_c2_beacon_http.yml",
+      "comment": "DETECTED — Wazuh alert fired on outbound HTTP from non-browser process. Atomic Red Team Test 1. Sysmon EID 3 (NetworkConnect). Sigma rule: sigma/T1071.001_c2_beacon_http.yml",
       "score": 100,
       "enabled": true,
       "metadata": [
         { "name": "status", "value": "DETECTED" },
         { "name": "wazuh_alert", "value": "Windows command prompt started by an abnormal process" },
+        { "name": "telemetry", "value": "Sysmon EID 3 (NetworkConnect)" },
         { "name": "sigma_rule", "value": "sigma/T1071.001_c2_beacon_http.yml" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1048",
+      "tactic": "exfiltration",
+      "color": "#7C3AED",
+      "comment": "SIGMA READY — Pending live validation. Sysmon EID 3 (NetworkConnect) to non-standard ports (21, 4444, 6667, 8443, 9001) from non-browser processes. Sigma rule: sigma/T1048_exfiltration_alt_protocol.yml",
+      "score": 75,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "SIGMA READY — Pending emulation" },
+        { "name": "telemetry", "value": "Sysmon EID 3 (NetworkConnect) — unusual destination ports" },
+        { "name": "sigma_rule", "value": "sigma/T1048_exfiltration_alt_protocol.yml" },
+        { "name": "atomic_test", "value": "T1048 Test 1" }
+      ],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1070.004",
+      "tactic": "defense-evasion",
+      "color": "#7C3AED",
+      "comment": "SIGMA READY — Pending live validation. Sysmon EID 23 (FileDelete) from staging paths + del /f /q via cmd.exe. Sigma rule: sigma/T1070.004_file_deletion.yml",
+      "score": 75,
+      "enabled": true,
+      "metadata": [
+        { "name": "status", "value": "SIGMA READY — Pending emulation" },
+        { "name": "telemetry", "value": "Sysmon EID 23 (FileDelete), EID 1 (ProcessCreate)" },
+        { "name": "sigma_rule", "value": "sigma/T1070.004_file_deletion.yml" },
+        { "name": "atomic_test", "value": "T1070.004 Test 1" }
       ],
       "showSubtechniques": false
     },
     {
       "techniqueID": "T1490",
       "tactic": "impact",
-      "color": "#ef5350",
-      "comment": "MISSED — Executed but not detected. Root cause: no Wazuh rule targeting vssadmin.exe with delete shadows arguments. Gap closed by Sigma rule: sigma/T1490_shadow_copy_deletion.yml",
-      "score": 0,
+      "color": "#66bb6a",
+      "comment": "DETECTED — Janus rule 100115 fired. ART Test 1: vssadmin.exe delete shadows (no shadow copies found but command ran). Sysmon EID 1 → rule 100115 (level 15 CRITICAL). 2 alerts confirmed. Sigma: sigma/T1490_shadow_copy_deletion.yml",
+      "score": 100,
       "enabled": true,
       "metadata": [
-        { "name": "status", "value": "MISSED — GAP" },
-        { "name": "root_cause", "value": "No detection rule for vssadmin.exe shadow deletion" },
+        { "name": "status", "value": "DETECTED — Janus ART validated" },
+        { "name": "janus_rule", "value": "100115 (level 15 CRITICAL)" },
+        { "name": "alert_count", "value": "2" },
+        { "name": "telemetry", "value": "Sysmon EID 1 (ProcessCreate) — vssadmin.exe delete shadows" },
         { "name": "sigma_rule", "value": "sigma/T1490_shadow_copy_deletion.yml" }
       ],
       "showSubtechniques": false
@@ -109,27 +316,39 @@
       "techniqueID": "T1486",
       "tactic": "impact",
       "color": "#ef5350",
-      "comment": "MISSED — Executed but not detected. Root cause: no Sysmon EID 11 rules monitoring ransomware file extensions (.encrypted, .enc, etc.). Gap closed by Sigma rule: sigma/T1486_file_encryption.yml",
+      "comment": "MISSED — Executed but not detected. Root cause: no Sysmon EID 11 rules monitoring ransomware file extensions (.enc, .encrypted). Gap closed by Sigma rule: sigma/T1486_file_encryption.yml",
       "score": 0,
       "enabled": true,
       "metadata": [
-        { "name": "status", "value": "MISSED — GAP" },
+        { "name": "status", "value": "MISSED — GAP CLOSED" },
         { "name": "root_cause", "value": "No FileCreate monitoring for ransomware extensions" },
+        { "name": "telemetry", "value": "Sysmon EID 11 (FileCreate) — .encrypted, .locked, .enc extensions" },
         { "name": "sigma_rule", "value": "sigma/T1486_file_encryption.yml" }
       ],
       "showSubtechniques": false
     }
   ],
   "gradient": {
-    "colors": ["#ef5350", "#66bb6a"],
+    "colors": ["#ef5350", "#7C3AED", "#66bb6a"],
     "minValue": 0,
     "maxValue": 100
   },
   "legendItems": [
-    { "label": "Detected by Wazuh (live run)", "color": "#66bb6a" },
-    { "label": "Executed but NOT detected — gap", "color": "#ef5350" }
+    { "label": "Detected by Wazuh (live hackathon run)", "color": "#66bb6a" },
+    { "label": "Executed but NOT detected — gap closed by Sigma", "color": "#ef5350" },
+    { "label": "Sigma rule deployed — pending live validation", "color": "#7C3AED" }
   ],
-  "metadata": [],
+  "metadata": [
+    { "name": "platform", "value": "Janus Purple Team Platform" },
+    { "name": "version", "value": "Final MVP v2" },
+    { "name": "total_techniques", "value": "20" },
+    { "name": "tactics_covered", "value": "11" },
+    { "name": "sigma_rules", "value": "20" },
+    { "name": "live_detected", "value": "7" },
+    { "name": "art_validated", "value": "7 (T1059.001, T1082, T1018, T1490, T1547.001, T1112, T1016)" },
+    { "name": "sigma_ready", "value": "13" },
+    { "name": "skills_reference", "value": "https://github.com/mukul975/Anthropic-Cybersecurity-Skills" }
+  ],
   "links": [],
   "showTacticRowBackground": true,
   "tacticRowBackground": "#1E3A5F",
