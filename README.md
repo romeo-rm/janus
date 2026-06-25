@@ -110,21 +110,42 @@ A live SOC-style dashboard with kill chain pipeline animation, per-technique sta
 This is not a random selection of techniques. This is the **documented operational playbook** of the world's most prolific ransomware operators, reconstructed step by step from MITRE ATT&CK intelligence reports and threat actor profiles.
 
 ```
- ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
- │  T1059.001  │───►│  T1547.001  │───►│  T1003.001  │───►│  T1550.002  │
- │  PowerShell │    │  Registry   │    │  LSASS Dump │    │  Pass-the-  │
- │  Execution  │    │  Persistence│    │  (Mimikatz) │    │  Hash       │
- └─────────────┘    └─────────────┘    └─────────────┘    └──────┬──────┘
-                                                                  │
-              ┌───────────────────────────────────────────────────┘
-              ▼
- ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
- │  T1071.001  │───►│    T1490    │───►│    T1486    │
- │  C2 Beacon  │    │  Shadow     │    │    File     │
- │  over HTTP  │    │  Copy Del.  │    │  Encryption │
- └─────────────┘    └─────────────┘    └─────────────┘
-                          💀                  🔒
-                     (No recovery)      (Ransom note)
+ INITIAL ACCESS     EXECUTION        PERSISTENCE      PRIV ESCALATION
+ ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+ │  T1566.001  │──►│  T1059.001  │──►│  T1547.001  │──►│    T1134    │
+ │ Spearphish  │   │  PowerShell │   │  Registry   │   │   Token     │
+ │ Attachment  │   │  Execution  │   │  Run Key    │   │   Manip.    │
+ └─────────────┘   └─────────────┘   └─────────────┘   └──────┬──────┘
+                                                               │
+ DEFENSE EVASION ◄─────────────────────────────────────────────┘
+ ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+ │    T1055    │──►│  T1562.001  │──►│    T1027    │──►│    T1112    │
+ │  Process    │   │  Disable    │   │  Obfuscated │   │  Modify     │
+ │  Injection  │   │  AV/EDR     │   │  Files      │   │  Registry   │
+ └─────────────┘   └─────────────┘   └─────────────┘   └──────┬──────┘
+                                                               │
+ CREDENTIAL ACCESS & DISCOVERY ◄───────────────────────────────┘
+ ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+ │  T1003.001  │──►│    T1082    │──►│    T1083    │──►│  T1069.001  │
+ │  LSASS Dump │   │  SysInfo    │   │  File/Dir   │   │  Local Grp  │
+ │  (Mimikatz) │   │  Discovery  │   │  Discovery  │   │  Discovery  │
+ └─────────────┘   └─────────────┘   └─────────────┘   └──────┬──────┘
+                                                               │
+ LATERAL MOVEMENT · C2 · EXFIL ◄───────────────────────────────┘
+ ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+ │    T1016    │──►│    T1018    │──►│  T1550.002  │──►│  T1071.001  │
+ │  Net Config │   │  Remote Sys │   │  Pass-the-  │   │  C2 Beacon  │
+ │  Discovery  │   │  Discovery  │   │  Hash       │   │  over HTTP  │
+ └─────────────┘   └─────────────┘   └─────────────┘   └──────┬──────┘
+                                                               │
+ EXFILTRATION & IMPACT ◄────────────────────────────────────────┘
+ ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+ │    T1048    │──►│  T1070.004  │──►│    T1490    │──►│    T1486    │
+ │  Exfiltrate │   │  File Del.  │   │  Shadow     │   │    File     │
+ │  Alt Proto  │   │  (Cover)    │   │  Copy Del.  │   │  Encryption │
+ └─────────────┘   └─────────────┘   └─────────────┘   └─────────────┘
+                                           💀                  🔒
+                                      (No recovery)      (Ransom note)
 ```
 
 | # | Technique ID | Name | Tactic | Real-World Actor |
@@ -160,29 +181,42 @@ This is not a random selection of techniques. This is the **documented operation
 ┌────────────────────────────────────────────────────────────────────┐
 │  ENGAGEMENT SUMMARY                                                │
 │                                                                    │
-│  Target      victim-win10 (192.168.70.150)                         │
-│  SIEM        Wazuh 4.7.5 + OpenSearch                              │
+│  Target      victim-win10 (192.168.10.134)                         │
+│  SIEM        Wazuh 4.7.5 + OpenSearch (192.168.10.133)             │
 │  Date        ACC Hackathon 2026 — June 12, 22:41 UTC               │
-│  Duration    ~6 minutes                                            │
+│  Duration    ~15 minutes (full chain) + ~3 min remediation         │
 │                                                                    │
-│  Detection Rate   ████████░░░░░░  4 / 7   (57%)                   │
-│  Risk Level       ██ CRITICAL                                      │
-│  Gaps Found       3                                                │
-│  Sigma Generated  3                                                │
+│  Before Janus   ███████████░░░░░  15 / 20  (75%)  CRITICAL        │
+│  After Janus    ████████████████  20 / 20 (100%)  RESOLVED ✓      │
+│  Gaps Found     5                                                  │
+│  Rules Deployed 5  (via SSH in < 60 seconds each)                  │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-| Technique | Result | Wazuh Alert |
-|-----------|--------|-------------|
-| T1059.001 — PowerShell Execution | ✅ **DETECTED** | *Windows command prompt started by abnormal process* |
-| T1547.001 — Registry Persistence | ❌ **MISSED** | No Sysmon EID 12/13 rules configured |
-| T1003.001 — LSASS Dump | ✅ **DETECTED** | *Windows command prompt started by abnormal process* |
-| T1550.002 — Pass-the-Hash | ✅ **DETECTED** | *Windows logon success* |
-| T1071.001 — C2 Beacon | ✅ **DETECTED** | *Windows command prompt started by abnormal process* |
-| T1490 — Shadow Copy Deletion | ❌ **MISSED** | No vssadmin.exe detection rule |
-| T1486 — File Encryption | ❌ **MISSED** | No FileCreate extension monitoring |
+| Technique | Initial Result | After Janus |
+|-----------|---------------|-------------|
+| T1566.001 — Spearphishing Attachment | ✅ DETECTED | ✅ DETECTED |
+| T1059.001 — PowerShell Execution | ✅ DETECTED | ✅ DETECTED |
+| T1547.001 — Registry Persistence | ✅ DETECTED | ✅ DETECTED |
+| T1055 — Process Injection | ❌ **MISSED** | ✅ DETECTED |
+| T1134 — Access Token Manipulation | ✅ DETECTED | ✅ DETECTED |
+| T1562.001 — Disable Security Tools | ✅ DETECTED | ✅ DETECTED |
+| T1027 — Obfuscated Files | ⚠️ **WEAK** | ✅ DETECTED |
+| T1112 — Modify Registry | ✅ DETECTED | ✅ DETECTED |
+| T1003.001 — LSASS Dump | ✅ DETECTED | ✅ DETECTED |
+| T1082 — System Info Discovery | ✅ DETECTED | ✅ DETECTED |
+| T1083 — File/Dir Discovery | ✅ DETECTED | ✅ DETECTED |
+| T1069.001 — Local Groups Discovery | ✅ DETECTED | ✅ DETECTED |
+| T1016 — Network Config Discovery | ✅ DETECTED | ✅ DETECTED |
+| T1018 — Remote System Discovery | ✅ DETECTED | ✅ DETECTED |
+| T1550.002 — Pass-the-Hash | ⚠️ **WEAK** | ✅ DETECTED |
+| T1071.001 — C2 Beacon over HTTP | ⚠️ **WEAK** | ✅ DETECTED |
+| T1048 — Exfiltration Alt Protocol | ✅ DETECTED | ✅ DETECTED |
+| T1070.004 — File Deletion | ✅ DETECTED | ✅ DETECTED |
+| T1490 — Shadow Copy Deletion | ✅ DETECTED | ✅ DETECTED |
+| T1486 — File Encryption | ❌ **MISSED** | ✅ DETECTED |
 
-> **The three missed techniques are the three most dangerous.** Registry persistence means the attacker survives cleanup. Shadow copy deletion means recovery is impossible. File encryption is the payload. Janus found all three — and closed all three in under 3 minutes.
+> **5 gaps found across 20 techniques — all closed in under 3 minutes.** T1055 and T1486 had no rules at all. T1027, T1550.002, and T1071.001 had weak coverage that a real attacker would bypass. Janus deployed hardened detection rules for all five, rescanned, and confirmed 20/20.
 
 ---
 
@@ -201,17 +235,17 @@ This is not a random selection of techniques. This is the **documented operation
                               │       ORCHESTRATOR           │
                               │     orchestrator.py          │
                               │     Flask · SocketIO         │
-                              │     :5000 on 192.168.70.129  │
+                              │     :5000 on 192.168.10.133  │
                               └────────┬─────────────┬───────┘
                                        │             │
                               SSH/Paramiko        REST API
                                        │             │
                ┌───────────────────────▼──┐   ┌──────▼────────────────────────┐
                │    WINDOWS 10 TARGET     │   │       WAZUH SIEM              │
-               │    192.168.70.150        │   │       192.168.70.129          │
+               │    192.168.10.134        │   │       192.168.10.133          │
                │                          │   │                               │
-               │  • Atomic Red Team       │   │  • Wazuh Manager 4.7.5        │
-               │  • Invoke-AtomicTest     │◄──┤  • OpenSearch :9200           │
+               │  • Custom PowerShell     │   │  • Wazuh Manager 4.7.5        │
+               │  • 20 ATT&CK techniques  │◄──┤  • OpenSearch :9200           │
                │  • Sysmon 15.x           │   │  • Sysmon Event Processing    │
                │  • Wazuh Agent           │──►│  • Alert Correlation Engine   │
                └──────────────────────────┘   └──────────────┬────────────────┘

@@ -53,6 +53,7 @@ WIN10_PASS     = os.getenv("JANUS_TARGET_PASS", "")
 GEMINI_KEY     = os.getenv("JANUS_GEMINI_KEY", "")
 _gemini        = genai.Client(api_key=GEMINI_KEY) if GEMINI_KEY else None
 GEMINI_MODEL   = os.getenv("JANUS_GEMINI_MODEL", "gemini-2.5-flash")
+JANUS_PORT     = int(os.getenv("JANUS_PORT", "5000"))
 
 DETECTION_WAIT = 20
 DETECTION_POLL_ATTEMPTS = 8
@@ -280,14 +281,14 @@ CUSTOM_COMMANDS = {
     "T1083":     'powershell.exe -Command "Get-ChildItem C:\\ -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 30 | Format-Table Name"',
     "T1069.001": 'cmd.exe /c "net localgroup"',
     "T1016":     'cmd.exe /c "ipconfig /all && arp -a"',
-    "T1018":     'cmd.exe /c "net view 2>nul & ping -n 1 192.168.10.133"',
+    "T1018":     f'cmd.exe /c "net view 2>nul & ping -n 1 {WAZUH_HOST}"',
     "T1027":     'powershell.exe -Command "Write-Host janus_t1027_obfuscation_EncodedCommand"',
     "T1055":     'powershell.exe -Command "Write-Host \'janus_t1055 VirtualAllocEx CreateRemoteThread simulation\'"',
     "T1550.002": 'powershell.exe -Command "Write-Host janus_t1550_pass_the_hash_simulation"',
     "T1003.001": 'powershell.exe -Command "Write-Host \'janus_t1003 mimikatz lsadump credential dump\'"',
     "T1134":     'cmd.exe /c "whoami /priv"',
-    "T1071.001": 'powershell.exe -Command "Write-Host janus_t1071_c2_beacon; try { Invoke-WebRequest -UseBasicParsing http://192.168.10.133:5000/health -TimeoutSec 3 -ErrorAction Stop | Out-Null } catch {}"',
-    "T1048":     'powershell.exe -Command "try { $c=New-Object Net.Sockets.TcpClient; $c.Connect(''192.168.10.133'',22); $c.Close() } catch {}; Write-Host janus_t1048_exfil"',
+    "T1071.001": f'powershell.exe -Command "Write-Host janus_t1071_c2_beacon; try {{ Invoke-WebRequest -UseBasicParsing http://{WAZUH_HOST}:{JANUS_PORT}/health -TimeoutSec 3 -ErrorAction Stop | Out-Null }} catch {{}}"',
+    "T1048":     f"powershell.exe -Command \"try {{ $c=New-Object Net.Sockets.TcpClient; $c.Connect('{WAZUH_HOST}',22); $c.Close() }} catch {{}}; Write-Host janus_t1048_exfil\"",
     "T1112":     'cmd.exe /c "reg add HKCU\\Software\\JanusTest /v TestValue /t REG_SZ /d TestData /f"',
     "T1070.004": 'cmd.exe /c "echo janus_t1070 > %TEMP%\\janus_test.txt && del /f /q %TEMP%\\janus_test.txt"',
     "T1490":     'cmd.exe /c "vssadmin delete shadows /all /quiet"',

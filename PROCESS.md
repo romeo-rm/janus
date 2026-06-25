@@ -95,7 +95,7 @@ After technique execution, query Wazuh for matching alerts.
 
 **Via Janus orchestrator (`/debug/groups` endpoint):**
 ```bash
-curl http://192.168.10.133:5001/debug/groups
+curl http://192.168.10.133:5000/debug/groups
 ```
 
 **Via Wazuh alerts log:**
@@ -258,11 +258,10 @@ grep "janus_t1082" /var/ossec/logs/alerts/alerts.log | wc -l
 |-----------|---------|-------------|
 | Wazuh SIEM | `192.168.10.133` | `wazuh` / `4242` |
 | Windows Target | `192.168.10.134` | `target` / `target` |
-| Atomic Red Team | `C:\AtomicRedTeam\` | — |
 | Sysmon Config | `C:\Windows\sysmon.xml` | — |
 | Wazuh Rules | `/var/ossec/etc/rules/local_rules.xml` | — |
 | Sigma Rules | `/opt/hackathon/workspace/sigma/` | — |
-| Janus API | `http://192.168.10.133:5001` | — |
+| Janus API | `http://192.168.10.133:5000` | — |
 
 ---
 
@@ -294,6 +293,8 @@ grep "janus_t1082" /var/ossec/logs/alerts/alerts.log | wc -l
 | 100121  | T1059.001 | PowerShell from cmd chain | 10 |
 | 100122  | T1112     | reg.exe/PS registry modification | 6  |
 | 100123  | T1016     | cmd.exe with network enum cmds | 3  |
+| 100124  | T1071.001 | HTTP C2 from non-browser process | 9  |
+| 100125  | T1048     | Exfil via raw TCP client | 10 |
 
 ---
 

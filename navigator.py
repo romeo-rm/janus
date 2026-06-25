@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
-Purple Team Atomic Testing Agent
+Janus Navigator — MITRE ATT&CK Navigator Layer Generator
 
-Parses Atomic Red Team YAML definitions, correlates execution logs with detection
-results, generates MITRE ATT&CK Navigator layers, and produces coverage gap reports.
+Generates ATT&CK Navigator coverage layers from Janus run results and
+produces detection gap reports.
 
 Usage:
-    python agent.py --atomics-path /path/to/atomics --log-dir /path/to/logs
-    python agent.py --atomics-path /path/to/atomics --detections detection_results.json
-    python agent.py --mode navigator --output-layer coverage.json
-    python agent.py --mode report --output-report coverage_report.json
+    python navigator.py --mode navigator --output-layer coverage.json
+    python navigator.py --mode report --output-report coverage_report.json
 
 Requirements:
     pip install pyyaml
