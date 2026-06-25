@@ -1,7 +1,7 @@
-<!-- Janus Purple Team Platform — Local Wazuh Detection Rules -->
-<!-- 20 ATT&CK Techniques, 11 Tactics — ACC Hackathon Final MVP  -->
-<!-- Skills reference: github.com/mukul975/Anthropic-Cybersecurity-Skills -->
-<!-- Rule IDs: 100100 - 100119                                           -->
+<!-- Janus Purple Team Platform — Local Wazuh Detection Rules (WEAK / GAP STATE) -->
+<!-- This file is the DEFAULT state deployed on Reset.                           -->
+<!-- 2 rules MISSING: T1055 (100102), T1550.002 (100118)                         -->
+<!-- 3 rules WEAKENED: T1027 (100105), T1071.001 (100124), T1486 (100116)        -->
 
 <group name="local,sysmon,janus,windows,">
 
@@ -16,7 +16,6 @@
   </rule>
 
   <!-- ── T1547.001 — Registry Run Key Persistence (Persistence) ───────── -->
-  <!-- chains off built-in rule 92300 which matches CurrentVersion\Run in sysmon_event_13 -->
   <rule id="100101" level="10">
     <if_sid>92300</if_sid>
     <description>T1547.001: Janus — Registry Run Key Persistence confirmed (CurrentVersion\Run write)</description>
@@ -24,14 +23,8 @@
     <mitre><id>T1547.001</id></mitre>
   </rule>
 
-  <!-- ── T1055 — Process Injection via CreateRemoteThread (Defense Eva) ─ -->
-  <rule id="100102" level="12">
-    <if_group>sysmon_event1</if_group>
-    <field name="win.eventdata.commandLine" type="pcre2">(?i)(janus_t1055|VirtualAllocEx|CreateRemoteThread simulation|WriteProcessMemory)</field>
-    <description>T1055: Process injection technique emulated — injection marker detected in command line</description>
-    <group>sysmon_eid1_detections,janus_t1055,</group>
-    <mitre><id>T1055</id></mitre>
-  </rule>
+  <!-- ── T1055 — RULE MISSING (no detection for process injection) ──────── -->
+  <!-- Rule 100102 intentionally absent — gap for presentation               -->
 
   <!-- ── T1134 — Access Token Manipulation (Privilege Escalation) ──────── -->
   <rule id="100103" level="8">
@@ -69,12 +62,12 @@
     <mitre><id>T1562.001</id></mitre>
   </rule>
 
-  <!-- ── T1027 — Obfuscated Files / PowerShell EncodedCommand (Def Eva) ─ -->
+  <!-- ── T1027 — WEAK: only catches classic -EncodedCommand, misses new obfuscation variants ─ -->
   <rule id="100105" level="8">
     <if_group>sysmon_event1</if_group>
-    <field name="win.eventdata.image" type="pcre2">(?i)\\(powershell|pwsh|cmd)\.exe$</field>
-    <field name="win.eventdata.commandLine" type="pcre2">(?i)(\-EncodedCommand|\-enc |\-ec |janus_t1027)</field>
-    <description>T1027: Obfuscated PowerShell — EncodedCommand or obfuscation marker detected</description>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\(powershell|pwsh)\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(\-EncodedCommand)</field>
+    <description>T1027: Obfuscated PowerShell — classic EncodedCommand flag only (incomplete coverage)</description>
     <group>sysmon_eid1_detections,janus_t1027,</group>
     <mitre><id>T1027</id></mitre>
   </rule>
@@ -88,7 +81,6 @@
     <mitre><id>T1112</id></mitre>
   </rule>
 
-  <!-- T1112 alt: catch reg.exe adding generic HKCU\Software keys (ART test pattern) -->
   <rule id="100122" level="6">
     <if_group>sysmon_event_13</if_group>
     <field name="win.eventdata.image" type="pcre2">(?i)\\(reg|powershell|pwsh)\.exe$</field>
@@ -144,7 +136,6 @@
     <mitre><id>T1016</id></mitre>
   </rule>
 
-  <!-- T1016 alt: chains off sysmon_eid1_detections (set by rule 92052 for cmd.exe from PS parent) -->
   <rule id="100123" level="5">
     <if_group>sysmon_eid1_detections</if_group>
     <field name="win.eventdata.image" type="pcre2">(?i)\\cmd\.exe$</field>
@@ -163,6 +154,9 @@
     <group>sysmon_eid1_detections,janus_t1018,</group>
     <mitre><id>T1018</id></mitre>
   </rule>
+
+  <!-- ── T1550.002 — RULE MISSING (no detection for pass-the-hash) ──────── -->
+  <!-- Rule 100118 intentionally absent — gap for presentation               -->
 
   <!-- ── T1048 — Exfiltration over Alternative Protocol (Exfiltration) ── -->
   <rule id="100113" level="10">
@@ -194,17 +188,17 @@
     <mitre><id>T1490</id></mitre>
   </rule>
 
-  <!-- ── T1486 — File Encryption Ransomware (Impact) CRITICAL ─────────── -->
-    <rule id="100116" level="14">
+  <!-- ── T1486 — WEAK: misses PowerShell marker, only catches raw XOR bytes ─ -->
+  <rule id="100116" level="14">
     <if_group>sysmon_event1</if_group>
-    <field name="win.eventdata.commandLine" type="pcre2">(?i)(janus_t1486|-bxor|WriteAllBytes)</field>
-    <description>T1486: Ransomware file encryption — PowerShell XOR encryption creating .enc files detected</description>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(-bxor|WriteAllBytes)</field>
+    <description>T1486: Ransomware — raw byte-level XOR encryption only (misses script-based variants)</description>
     <group>sysmon_eid1_detections,janus_t1486,</group>
     <mitre><id>T1486</id></mitre>
   </rule>
 
   <!-- ── T1566.001 — Spearphishing Attachment (Initial Access) ─────────── -->
-    <rule id="100117" level="10">
+  <rule id="100117" level="10">
     <if_group>sysmon_event1</if_group>
     <field name="win.eventdata.commandLine" type="pcre2">(?i)invoice_janus\.docm</field>
     <description>T1566.001: Spearphishing attachment dropped -invoice_janus.docm written via command line</description>
@@ -212,22 +206,12 @@
     <mitre><id>T1566.001</id></mitre>
   </rule>
 
-  <!-- ── T1550.002 — Pass-the-Hash supplemental alert (Lateral Movement) ─ -->
-  <!-- Primary detection via Windows Security EID 4624 — covered by Wazuh built-in auth rules -->
-    <rule id="100118" level="10">
+  <!-- ── T1071.001 — WEAK: only matches curl/wget, misses PowerShell C2 beacons ─ -->
+  <rule id="100124" level="9">
     <if_group>sysmon_event1</if_group>
-    <field name="win.eventdata.commandLine" type="pcre2">(?i)(janus_t1550|sekurlsa::pth|pass.the.hash|pth-winexe)</field>
-    <description>T1550.002: Pass-the-Hash tool invocation detected in command line</description>
-    <group>sysmon_eid1_detections,janus_t1550_002,</group>
-    <mitre><id>T1550.002</id></mitre>
-  </rule>
-
-  <!-- T1071.001 - HTTP C2 emulation from a non-browser process -->
-        <rule id="100124" level="9">
-    <if_group>sysmon_event1</if_group>
-    <field name="win.eventdata.image" type="pcre2">(?i)\\(powershell|pwsh|curl|wget|cmd)\.exe$</field>
-    <field name="win.eventdata.commandLine" type="pcre2">(?i)(janus_t1071|Invoke-WebRequest|janus_c2_beacon)</field>
-    <description>T1071.001: HTTP application-layer protocol from non-browser process</description>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\(curl|wget)\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(Invoke-WebRequest)</field>
+    <description>T1071.001: HTTP C2 — curl/wget only (misses PowerShell-based beacons)</description>
     <group>sysmon_eid1_detections,janus_t1071_001,</group>
     <mitre><id>T1071.001</id></mitre>
   </rule>

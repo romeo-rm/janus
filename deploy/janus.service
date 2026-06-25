@@ -1,0 +1,17 @@
+[Unit]
+Description=Janus Adversary Emulation Orchestrator
+After=network-online.target wazuh-manager.service wazuh-indexer.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wazuh
+Group=wazuh
+WorkingDirectory=/opt/hackathon/workspace
+ExecStart=/usr/bin/python3 /opt/hackathon/workspace/orchestrator.py
+Restart=on-failure
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

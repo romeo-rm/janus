@@ -3,709 +3,390 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ACC | Adversary Emulation Engine</title>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <title>Janus | Adversary Emulation Engine</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:       #080C12;
-      --surface:  #0F1923;
-      --surface2: #162030;
-      --border:   #1E3A5F;
-      --text:     #C8DBF0;
-      --dim:      #4A6A8A;
-      --accent:   #3B82F6;
-      --ok:       #10B981;
-      --bad:      #EF4444;
-      --warn:     #F59E0B;
-      --mono: 'JetBrains Mono', 'Courier New', monospace;
-      --sans: Inter, -apple-system, sans-serif;
-    }
-
-    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; }
-
-    /* ── Header ─────────────────────────────────────────────────────── */
-    header {
-      display: flex; align-items: center; gap: 20px;
-      padding: 11px 24px; border-bottom: 1px solid var(--border);
-      background: var(--surface); flex-shrink: 0; height: 48px;
-    }
-    .logo  { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .18em; color: var(--accent); }
-    .title { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; color: var(--text); text-transform: uppercase; }
-    .indicators { display: flex; gap: 18px; margin-left: auto; align-items: center; }
-    .ind { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--dim); }
-    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); transition: background .4s, box-shadow .4s; }
-    .dot.ok  { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
-    .dot.bad { background: var(--bad); }
-    .dot.blink { animation: blink 1.4s ease-in-out infinite; }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
-
-    .badge { font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:3px 10px; border-radius:3px; border:1px solid currentColor; }
-    .badge.idle     { color:var(--dim); }
-    .badge.running  { color:var(--warn); animation:blink 1s ease-in-out infinite; }
-    .badge.complete { color:var(--ok); }
-
-    /* ── Layout ─────────────────────────────────────────────────────── */
-    .layout {
-      display: grid;
-      grid-template-columns: 340px 1fr;
-      grid-template-rows: 1fr 48px;
-      height: calc(100vh - 48px);
-      overflow: hidden;
-    }
-
-    /* ── Kill chain panel ───────────────────────────────────────────── */
-    .chain-panel {
-      border-right: 1px solid var(--border);
-      display: flex; flex-direction: column;
-      padding: 22px 18px; overflow-y: auto;
-    }
-    .sect-label {
-      font-family: var(--mono); font-size: 10px; font-weight: 700;
-      letter-spacing: .18em; text-transform: uppercase; color: var(--dim); margin-bottom: 18px;
-    }
-
-    /* Pipeline */
-    .pipeline { display: flex; flex-direction: column; }
-    .step-row { display: flex; align-items: stretch; }
-    .step-pipe { display: flex; flex-direction: column; align-items: center; width: 26px; flex-shrink: 0; }
-
-    .node {
-      width: 26px; height: 26px; border-radius: 50%;
-      border: 2px solid var(--border); background: var(--surface);
-      display: flex; align-items: center; justify-content: center;
-      font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--dim);
-      transition: all .35s ease; flex-shrink: 0; position: relative; z-index: 1;
-    }
-    .node.running  { border-color:var(--warn); color:var(--warn); background:rgba(245,158,11,.1); box-shadow:0 0 14px rgba(245,158,11,.5); animation:node-glow 1s ease-in-out infinite; }
-    .node.detected { border-color:var(--ok);   color:var(--ok);   background:rgba(16,185,129,.1); box-shadow:0 0 8px rgba(16,185,129,.3); }
-    .node.missed   { border-color:var(--bad);  color:var(--bad);  background:rgba(239,68,68,.1); }
-    @keyframes node-glow { 0%,100%{box-shadow:0 0 14px rgba(245,158,11,.5)} 50%{box-shadow:0 0 22px rgba(245,158,11,.85)} }
-
-    .vline {
-      width: 2px; flex: 1; min-height: 18px; background: var(--border);
-      margin: 0 auto; position: relative; overflow: hidden;
-    }
-    .vline.flow::after {
-      content: ''; position: absolute; top: -100%; left: 0; width: 100%; height: 60%;
-      background: linear-gradient(to bottom, transparent, var(--accent), transparent);
-      animation: flow 1.1s linear infinite;
-    }
-    @keyframes flow { 0%{top:-100%} 100%{top:200%} }
-
-    .step-info { flex:1; padding: 2px 0 2px 13px; min-height: 50px; display:flex; flex-direction:column; justify-content:center; }
-    .step-tid  { font-family:var(--mono); font-size:10px; font-weight:700; color:var(--dim); letter-spacing:.05em; transition:color .3s; }
-    .step-tid.running  { color:var(--warn); }
-    .step-tid.detected { color:var(--ok); }
-    .step-tid.missed   { color:var(--bad); }
-    .step-name  { font-size:13px; font-weight:500; color:var(--text); margin-top:2px; }
-    .step-tac   { font-family:var(--mono); font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; margin-top:1px; }
-    .step-st    { font-family:var(--mono); font-size:10px; margin-top:3px; }
-    .step-st.running  { color:var(--warn); }
-    .step-st.detected { color:var(--ok); }
-    .step-st.missed   { color:var(--bad); }
-    .step-alt   { font-family:var(--mono); font-size:9px; color:var(--dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
-    .step-row:last-child .vline { display:none; }
-
-    /* ── Right panel ────────────────────────────────────────────────── */
-    .right-panel { display:grid; grid-template-rows:auto 1fr; overflow:hidden; }
-
-    .metrics { display:grid; grid-template-columns:200px 1fr; border-bottom:1px solid var(--border); }
-
-    /* Score */
-    .score-box { padding:24px 28px; border-right:1px solid var(--border); display:flex; flex-direction:column; justify-content:center; }
-    .score-lbl { font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); margin-bottom:4px; }
-    .score-num { font-family:var(--mono); font-size:80px; font-weight:700; line-height:1; color:var(--text); letter-spacing:-.02em; transition:color .5s; }
-    .score-num.full { color:var(--ok); }
-    .score-num.part { color:var(--warn); }
-    .score-num.zero { color:var(--dim); }
-    .score-sub { font-family:var(--mono); font-size:11px; color:var(--dim); margin-top:4px; }
-
-    /* Progress + tactics */
-    .meta-box { padding:20px 24px; display:flex; flex-direction:column; gap:14px; justify-content:center; }
-    .track { height:5px; background:var(--surface2); border-radius:3px; overflow:hidden; }
-    .fill  { height:100%; background:linear-gradient(to right, var(--accent), var(--ok)); border-radius:3px; width:0%; transition:width .6s ease; }
-    .tactics-row { display:flex; gap:6px; flex-wrap:wrap; }
-    .tc {
-      font-family:var(--mono); font-size:9px; font-weight:500; letter-spacing:.08em; text-transform:uppercase;
-      padding:4px 9px; border-radius:2px; border:1px solid var(--border); color:var(--dim); background:var(--surface);
-      transition:all .4s ease; white-space:nowrap;
-    }
-    .tc.ok   { border-color:var(--ok);  color:var(--ok);  background:rgba(16,185,129,.07); }
-    .tc.bad  { border-color:var(--bad); color:var(--bad); background:rgba(239,68,68,.07); }
-    .tc.mix  { border-color:var(--warn);color:var(--warn);background:rgba(245,158,11,.07); }
-
-    /* Lower right */
-    .lower { display:grid; grid-template-columns:1fr 1fr; overflow:hidden; }
-
-    .sigma-panel { border-right:1px solid var(--border); display:flex; flex-direction:column; padding:18px; overflow-y:auto; }
-    .sigma-card  { background:var(--surface2); border:1px solid var(--border); border-left:3px solid var(--bad); border-radius:3px; padding:11px; margin-bottom:9px; }
-    .sigma-tid   { font-family:var(--mono); font-size:10px; font-weight:700; color:var(--bad); margin-bottom:3px; }
-    .sigma-desc  { font-size:12px; color:var(--dim); line-height:1.5; }
-    .sigma-tag   { display:inline-block; font-family:var(--mono); font-size:9px; padding:2px 6px; border-radius:2px; background:rgba(239,68,68,.12); color:var(--bad); margin-top:6px; }
-    .empty       { font-family:var(--mono); font-size:11px; color:var(--dim); text-align:center; padding:36px 20px; }
-
-    .log-panel { display:flex; flex-direction:column; padding:18px; overflow:hidden; }
-    .log-feed  { flex:1; overflow-y:auto; font-family:var(--mono); font-size:11px; line-height:1.75; color:var(--dim); }
-    .ll        { padding:0; }
-    .ll.ok     { color:var(--ok); }
-    .ll.bad    { color:var(--bad); }
-    .ll.warn   { color:var(--warn); }
-    .ll.accent { color:var(--accent); }
-
-    /* ── Bottom bar ─────────────────────────────────────────────────── */
-    .bottom { grid-column:1/-1; border-top:1px solid var(--border); background:var(--surface); display:flex; align-items:center; gap:10px; padding:0 20px; }
-    .btn { font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:7px 18px; border-radius:3px; border:none; cursor:pointer; transition:all .2s; }
-    .btn-run   { background:var(--accent); color:#fff; }
-    .btn-run:hover:not(:disabled) { background:#2563EB; }
-    .btn-ghost { background:transparent; color:var(--dim); border:1px solid var(--border); }
-    .btn-ghost:hover:not(:disabled) { border-color:var(--text); color:var(--text); }
-    .btn:active:not(:disabled) { transform:scale(.97); }
-    .btn:disabled { opacity:.4; cursor:not-allowed; }
-    .status-txt { margin-left:auto; font-family:var(--mono); font-size:10px; color:var(--dim); }
-    .status-txt b { color:var(--text); font-weight:500; }
-
-    /* Report modal */
-    .modal-overlay {
-      display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);
-      z-index:100; align-items:center; justify-content:center;
-    }
-    .modal-overlay.open { display:flex; }
-    .modal {
-      background:var(--surface); border:1px solid var(--border); border-radius:6px;
-      width:90vw; max-width:900px; max-height:88vh;
-      display:flex; flex-direction:column; overflow:hidden;
-    }
-    .modal-header {
-      display:flex; align-items:center; padding:16px 20px;
-      border-bottom:1px solid var(--border); flex-shrink:0;
-    }
-    .modal-title { font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text); }
-    .modal-close { margin-left:auto; background:none; border:none; color:var(--dim); font-size:18px; cursor:pointer; padding:0 4px; }
-    .modal-close:hover { color:var(--text); }
-    .modal-body { flex:1; overflow-y:auto; padding:24px; }
-    .report-content {
-      font-family:var(--sans); font-size:13px; line-height:1.75; color:var(--text);
-      white-space:pre-wrap; word-break:break-word;
-    }
-    .report-content h1, .report-content h2 { font-family:var(--mono); color:var(--accent); margin:20px 0 8px; font-size:13px; letter-spacing:.1em; }
-    .modal-footer { padding:14px 20px; border-top:1px solid var(--border); display:flex; gap:10px; flex-shrink:0; }
-    .generating { font-family:var(--mono); font-size:12px; color:var(--warn); animation:blink 1s ease-in-out infinite; }
-
-    /* Sigma implement button */
-    .sigma-card { transition: border-color .4s, background .4s; }
-    .sigma-card.deployed { border-left-color:var(--ok); background:rgba(16,185,129,.04); }
-    .sigma-card.deployed .sigma-tid { color:var(--ok); }
-    .sigma-card.deployed .sigma-tag { background:rgba(16,185,129,.12); color:var(--ok); }
-    .sigma-btn { font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:5px 0; border-radius:2px; border:1px solid var(--bad); color:var(--bad); background:transparent; cursor:pointer; margin-top:9px; display:block; width:100%; transition:all .2s; }
-    .sigma-btn:hover:not(:disabled) { background:rgba(239,68,68,.1); }
-    .sigma-btn.done { border-color:var(--ok); color:var(--ok); background:rgba(16,185,129,.08); cursor:default; }
-    .sigma-btn:disabled { opacity:.6; cursor:not-allowed; }
-    .btn-ok { background:var(--ok); color:#fff; }
-    .btn-ok:hover:not(:disabled) { background:#0EA271; }
-    .ll.deploy { color:#A78BFA; }
-
-    /* Deploy overlay */
-    .deploy-overlay { position:fixed; inset:0; z-index:200; background:rgba(8,12,18,.88); backdrop-filter:blur(5px); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .25s; }
-    .deploy-overlay.active { opacity:1; pointer-events:all; }
-    .deploy-terminal { width:540px; background:var(--surface); border:1px solid var(--border); border-radius:6px; overflow:hidden; box-shadow:0 0 60px rgba(0,0,0,.6),0 0 0 1px rgba(59,130,246,.15); }
-    .deploy-titlebar { padding:11px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; background:var(--surface2); }
-    .dt-dot { width:10px; height:10px; border-radius:50%; }
-    .dt-dot.r{background:#EF4444}.dt-dot.y{background:#F59E0B}.dt-dot.g{background:#10B981}
-    .dt-label { font-family:var(--mono); font-size:10px; color:var(--dim); margin-left:8px; letter-spacing:.06em; }
-    .deploy-body { padding:18px 20px 14px; min-height:190px; font-family:var(--mono); font-size:11.5px; line-height:2; }
-    .dline { color:var(--dim); display:block; }
-    .dline.ok { color:var(--ok); }
-    .dcursor { display:inline-block; width:7px; height:12px; background:var(--accent); vertical-align:middle; animation:cur .65s steps(1) infinite; }
-    @keyframes cur { 0%,49%{opacity:1}50%,100%{opacity:0} }
-    .deploy-prog-bar { height:3px; background:var(--surface2); }
-    .deploy-prog-fill { height:100%; width:0%; background:linear-gradient(to right,var(--accent),var(--ok)); transition:width .45s ease; }
-    .deploy-footer { padding:11px 16px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
-    .deploy-status { font-family:var(--mono); font-size:10px; color:var(--dim); }
-    .deploy-status.done { color:var(--ok); }
-
-    /* Scrollbars */
-    ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#07080f;--surface:#0c0e1d;--surface2:#111426;--surface3:#171b35;--border:#1c2240;--border2:#252b50;--purple:#7c3aed;--purple2:#9d6af5;--purple-dim:rgba(124,58,237,.12);--ok:#10b981;--bad:#ef4444;--warn:#f59e0b;--crit:#ff2d55;--text:#c8d5f2;--text2:#8a98c8;--dim:#526184;--mono:'JetBrains Mono',monospace;--sans:Inter,sans-serif;--display:'Space Grotesk',sans-serif}
+    html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:14px var(--sans)}
+    body::before{content:"";position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(124,58,237,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(124,58,237,.045) 1px,transparent 1px);background-size:40px 40px}
+    button,input{font:inherit}button{cursor:pointer}
+    header{height:58px;display:flex;align-items:center;gap:16px;padding:0 24px;background:rgba(12,14,29,.96);border-bottom:1px solid var(--border);position:relative;z-index:2}
+    .logo-mark{display:flex;align-items:center;gap:10px}.logo-icon{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;background:linear-gradient(135deg,var(--purple),#4f46e5);box-shadow:0 0 18px rgba(124,58,237,.45);font:700 16px var(--display);color:white}
+    .logo-name{font:700 17px var(--display);letter-spacing:.04em}.logo-name span{color:var(--purple2)}.header-sub{padding-left:15px;border-left:1px solid var(--border2);font:10px var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
+    .header-right{margin-left:auto;display:flex;align-items:center;gap:16px}.status-ind{display:flex;align-items:center;gap:7px;font:10px var(--mono);color:var(--text2)}.s-dot{width:7px;height:7px;border-radius:50%;background:var(--dim)}.s-dot.ok{background:var(--ok);box-shadow:0 0 7px var(--ok)}.s-dot.bad{background:var(--bad)}.s-dot.pulse{animation:pulse 1.4s infinite}
+    @keyframes pulse{50%{opacity:.3}}.run-badge{padding:4px 10px;border:1px solid currentColor;border-radius:4px;font:700 9px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}.run-badge.running{color:var(--warn);animation:pulse 1s infinite}.run-badge.complete{color:var(--ok)}
+    .tab-bar{height:42px;display:flex;align-items:stretch;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border);position:relative;z-index:2}.tab{padding:0 16px;border:0;border-bottom:2px solid transparent;background:none;color:var(--text2);font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase}.tab:hover{color:var(--text)}.tab.active{color:var(--purple2);border-bottom-color:var(--purple)}
+    .page{display:none;height:calc(100vh - 100px);position:relative;z-index:1}.page.active{display:flex;flex-direction:column}.scroll-page{overflow-y:auto}
+    .kill-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(330px,390px) 1fr}.chain-col{padding:18px 16px;border-right:1px solid var(--border);overflow-y:auto}.panel-label{margin-bottom:14px;font:700 9px var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+    .step-card{padding:11px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;transition:.3s}.step-card.running{border-color:var(--warn);background:rgba(245,158,11,.06);box-shadow:0 0 16px rgba(245,158,11,.12)}.step-card.detected{border-color:rgba(16,185,129,.55);background:rgba(16,185,129,.05)}.step-card.missed{border-color:rgba(239,68,68,.55);background:rgba(239,68,68,.05)}
+    .card-top{display:flex;gap:8px;align-items:center}.card-id{font:700 10px var(--mono);color:var(--purple2)}.card-tactic{margin-left:auto;font:8px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}.card-name{margin-top:3px;font-size:12px;color:var(--text)}.card-state{margin-top:5px;font:700 9px var(--mono);color:var(--dim)}.running .card-state{color:var(--warn)}.detected .card-state{color:var(--ok)}.missed .card-state{color:var(--bad)}.card-alert{margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:9px var(--mono);color:var(--text2)}.connector{width:2px;height:12px;margin:auto;background:var(--border);overflow:hidden;position:relative}.connector.flow::after{content:"";position:absolute;width:100%;height:70%;top:-100%;background:linear-gradient(transparent,var(--purple2),transparent);animation:flow 1s linear infinite}@keyframes flow{to{top:180%}}
+    .right-col{min-width:0;display:grid;grid-template-rows:auto 1fr;overflow:hidden}.metrics{display:grid;grid-template-columns:230px 1fr;border-bottom:1px solid var(--border)}.score-area{padding:20px;display:flex;align-items:center;gap:16px;border-right:1px solid var(--border)}
+    .ring{width:104px;height:104px;position:relative;flex:none}.ring svg{transform:rotate(-90deg)}.ring-bg,.ring-fill{fill:none;stroke-width:8}.ring-bg{stroke:var(--surface3)}.ring-fill{stroke:var(--purple);stroke-linecap:round;stroke-dasharray:251.327;stroke-dashoffset:251.327;transition:stroke-dashoffset .8s,stroke .4s}.ring-fill.full{stroke:var(--ok)}.ring-center{position:absolute;inset:0;display:grid;place-content:center;text-align:center}.ring-num{font:700 25px var(--display)}.ring-denom{font:9px var(--mono);color:var(--dim)}
+    .score-meta{display:grid;gap:3px}.score-label{font:9px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}.score-pct{font:700 20px var(--display);color:var(--purple2)}.score-sub{font:9px var(--mono);color:var(--dim)}.meta-area{padding:18px 22px;display:grid;align-content:center;gap:14px}.track{height:5px;border-radius:4px;overflow:hidden;background:var(--surface3)}.fill{height:100%;width:0;background:linear-gradient(90deg,var(--purple),var(--purple2));transition:width .6s}.tactics{display:flex;flex-wrap:wrap;gap:6px}.tactic{padding:4px 8px;border:1px solid var(--border);border-radius:3px;background:var(--surface2);font:8px var(--mono);text-transform:uppercase;color:var(--dim)}.tactic.ok{border-color:var(--ok);color:var(--ok)}.tactic.bad{border-color:var(--bad);color:var(--bad)}.tactic.mix{border-color:var(--warn);color:var(--warn)}
+    .lower{min-height:0;display:grid;grid-template-columns:1fr 1fr}.sigma-panel,.log-panel{padding:16px;overflow-y:auto}.sigma-panel{border-right:1px solid var(--border)}.sigma-card{padding:10px 11px;margin-bottom:8px;border:1px solid var(--border);border-left:3px solid var(--bad);border-radius:5px;background:var(--surface2)}.sigma-card.deployed{border-left-color:var(--ok)}.sigma-title{font:700 10px var(--mono);color:var(--bad)}.deployed .sigma-title{color:var(--ok)}.sigma-desc{margin-top:4px;font-size:11px;line-height:1.5;color:var(--text2)}.sigma-btn{width:100%;margin-top:8px;padding:5px;border:1px solid var(--purple);border-radius:3px;background:transparent;color:var(--purple2);font:700 9px var(--mono);text-transform:uppercase}.sigma-btn.done{border-color:var(--ok);color:var(--ok)}.empty{padding:30px;text-align:center;font:10px var(--mono);line-height:1.7;color:var(--dim)}
+    .log-feed{font:10px/1.75 var(--mono);color:var(--dim)}.log-line.ok{color:var(--ok)}.log-line.bad{color:var(--bad)}.log-line.warn{color:var(--warn)}.log-line.accent{color:var(--purple2)}
+    .bottom{height:44px;display:flex;align-items:center;gap:8px;padding:0 18px;border-top:1px solid var(--border);background:var(--surface)}.btn{padding:7px 14px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--text2);font:700 9px var(--mono);letter-spacing:.06em;text-transform:uppercase}.btn:hover:not(:disabled){border-color:var(--purple);color:var(--purple2)}.btn.primary{border-color:var(--purple);background:var(--purple);color:white}.btn.success{border-color:var(--ok);background:var(--ok);color:white}.btn.danger{border-color:var(--bad);background:rgba(239,68,68,.12);color:#fca5a5}.btn.danger:hover:not(:disabled){border-color:#f87171;color:white}.btn:disabled{opacity:.4;cursor:not-allowed}.step-now{margin-left:auto;font:9px var(--mono);color:var(--dim)}.step-now b{color:var(--text)}
+    .page-wrap{width:100%;max-width:1100px;margin:0 auto;padding:28px}.page-title{font:700 24px var(--display)}.page-sub{margin-top:5px;font:10px var(--mono);color:var(--dim)}.section{margin-top:26px}.section-title{padding-bottom:9px;margin-bottom:14px;border-bottom:1px solid var(--border);font:700 10px var(--mono);letter-spacing:.17em;text-transform:uppercase;color:var(--purple2)}
+    .report-toolbar{display:flex;align-items:center;gap:10px}.report-toolbar .btn{margin-left:auto}.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:20px}.metric-card{padding:14px;border:1px solid var(--border);border-radius:7px;background:var(--surface2)}.metric-label{font:8px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}.metric-value{margin-top:5px;font:700 22px var(--display)}.risk-banner{margin-top:16px;padding:14px 16px;border:1px solid rgba(239,68,68,.35);border-radius:7px;background:rgba(239,68,68,.06);font-size:12px;color:var(--text2)}.timeline-card,.gap-card{padding:13px 14px;margin-bottom:9px;border:1px solid var(--border);border-radius:6px;background:var(--surface2)}.timeline-head{display:flex;align-items:center;gap:9px}.timeline-id{font:700 10px var(--mono);color:var(--purple2)}.timeline-name{font-size:12px}.status-pill{margin-left:auto;padding:3px 7px;border-radius:3px;font:700 8px var(--mono)}.status-pill.ok{background:rgba(16,185,129,.13);color:var(--ok)}.status-pill.bad{background:rgba(239,68,68,.13);color:var(--bad)}.timeline-meta,.evidence{margin-top:6px;font:9px var(--mono);color:var(--dim)}.evidence{padding:7px 9px;border-left:2px solid var(--ok);background:var(--surface3);color:var(--text2)}.evidence.bad{border-left-color:var(--bad)}.report-text{white-space:pre-wrap;font-size:13px;line-height:1.8;color:var(--text2)}
+    .attack-top,.sigma-tools,.ai-head{display:flex;align-items:center;gap:10px}.legend{margin-left:auto;display:flex;gap:12px;font:9px var(--mono);color:var(--text2)}.legend span::before{content:"";display:inline-block;width:8px;height:8px;margin-right:5px;border-radius:2px;background:var(--surface3)}.legend .det::before{background:var(--ok)}.legend .miss::before{background:var(--bad)}.legend .dep::before{background:var(--purple)}.matrix{margin-top:18px;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(165px,1fr);gap:8px;overflow-x:auto}.tactic-col{display:grid;align-content:start;gap:6px}.tactic-head{padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);text-align:center;font:700 9px var(--mono);text-transform:uppercase;color:var(--text2)}.attack-cell{min-height:65px;padding:9px;border:1px solid var(--border);border-radius:5px;background:var(--surface2)}.attack-cell.det{border-color:rgba(16,185,129,.45);background:rgba(16,185,129,.05)}.attack-cell.miss{border-color:rgba(239,68,68,.45);background:rgba(239,68,68,.05)}.attack-cell.dep{border-color:rgba(124,58,237,.55);background:rgba(124,58,237,.08)}.attack-cell.neutral{opacity:.45}.attack-id{font:700 9px var(--mono)}.attack-name{margin-top:4px;font-size:10px;color:var(--text2)}.attack-badge{display:inline-block;margin-top:6px;padding:2px 5px;border-radius:2px;background:var(--surface3);font:700 7px var(--mono);color:var(--text2)}
+    .search{width:240px;padding:8px 11px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);font:10px var(--mono)}.filter.active{border-color:var(--purple);color:var(--purple2);background:var(--purple-dim)}.rule-count{font:9px var(--mono);color:var(--dim)}.sigma-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:12px;margin-top:16px}.rule-card{overflow:hidden;border:1px solid var(--border);border-radius:7px;background:var(--surface2)}.rule-head,.rule-foot{display:flex;align-items:center;gap:8px;padding:10px 12px}.rule-head{border-bottom:1px solid var(--border)}.rule-id{font:700 10px var(--mono);color:var(--purple2)}.rule-name{font-size:11px;color:var(--text2)}.rule-type{margin-left:auto;font:700 8px var(--mono);color:var(--ok)}.rule-type.gap{color:var(--bad)}.rule-card pre{max-height:250px;overflow:auto;padding:12px;font:10px/1.65 var(--mono);color:var(--text2)}.rule-foot{border-top:1px solid var(--border);font:8px var(--mono);color:var(--dim)}.copy{margin-left:auto}.yk{color:var(--purple2)}.ys{color:#6ee7b7}.yn{color:var(--warn)}.yc{color:var(--dim)}
+    .ai-head{height:58px;padding:0 24px;border-bottom:1px solid var(--border)}.ai-head .btn{margin-left:auto}.ai-body{flex:1;min-height:0;display:grid;grid-template-columns:260px 1fr}.ai-side{padding:18px;border-right:1px solid var(--border);display:grid;align-content:start;gap:10px}.ai-content{padding:24px 28px;overflow-y:auto}.thinking{display:none;align-items:center;gap:7px;font:10px var(--mono);color:var(--purple2)}.thinking.show{display:flex}.thinking i{width:6px;height:6px;border-radius:50%;background:var(--purple);animation:think 1.3s infinite}.thinking i:nth-child(2){animation-delay:.2s}.thinking i:nth-child(3){animation-delay:.4s}@keyframes think{0%,80%,100%{opacity:.2}40%{opacity:1}}.ai-output{white-space:pre-wrap;font-size:13px;line-height:1.85;color:var(--text2)}
+    .deploy-overlay{position:fixed;inset:0;z-index:10;display:grid;place-items:center;background:rgba(7,8,15,.88);backdrop-filter:blur(5px);opacity:0;pointer-events:none;transition:.25s}.deploy-overlay.open{opacity:1;pointer-events:auto}.terminal{width:min(560px,90vw);overflow:hidden;border:1px solid var(--border);border-radius:8px;background:var(--surface);box-shadow:0 0 55px rgba(124,58,237,.18)}.term-head,.term-foot{display:flex;align-items:center;gap:7px;padding:11px 15px;background:var(--surface2)}.term-head{border-bottom:1px solid var(--border)}.term-dot{width:9px;height:9px;border-radius:50%}.term-dot.r{background:var(--bad)}.term-dot.y{background:var(--warn)}.term-dot.g{background:var(--ok)}.term-label{margin-left:7px;font:9px var(--mono);color:var(--dim)}.term-body{min-height:210px;max-height:330px;overflow-y:auto;padding:16px 19px;font:10px/1.9 var(--mono);color:var(--text2)}.term-line.ok{color:var(--ok)}.term-progress{height:3px;background:var(--surface3)}.term-progress div{height:100%;width:0;background:linear-gradient(90deg,var(--purple),var(--purple2));transition:.4s}.term-foot{justify-content:space-between;border-top:1px solid var(--border);font:9px var(--mono);color:var(--dim)}
+    ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+    @media(max-width:900px){.header-sub,.status-ind span{display:none}.tab{padding:0 9px;font-size:8px}.kill-main{grid-template-columns:1fr}.chain-col{border-right:0;border-bottom:1px solid var(--border);max-height:42vh}.right-col{overflow:visible}.page{overflow-y:auto}.lower{grid-template-columns:1fr}.sigma-panel{border-right:0;border-bottom:1px solid var(--border)}.summary-grid{grid-template-columns:1fr 1fr}.ai-body{grid-template-columns:1fr}.ai-side{border-right:0;border-bottom:1px solid var(--border);grid-template-columns:repeat(4,1fr)}}
   </style>
 </head>
 <body>
+  <header>
+    <div class="logo-mark"><div class="logo-icon">J</div><div class="logo-name">JAN<span>US</span></div></div>
+    <div class="header-sub">Adversary Emulation Engine</div>
+    <div class="header-right">
+      <div class="status-ind"><i class="s-dot pulse" id="wazuh-dot"></i><span>Wazuh 192.168.10.133</span></div>
+      <div class="status-ind"><i class="s-dot pulse" id="victim-dot"></i><span>Victim 192.168.10.134</span></div>
+      <div class="status-ind"><i class="s-dot pulse" id="socket-dot"></i><span>Orchestrator</span></div>
+      <div class="run-badge" id="run-badge">Idle</div>
+    </div>
+  </header>
+  <nav class="tab-bar">
+    <button class="tab active" data-page="killchain">Kill Chain</button>
+    <button class="tab" data-page="report">Security Report</button>
+    <button class="tab" data-page="attack">ATT&amp;CK Navigator</button>
+    <button class="tab" data-page="sigma">Sigma Library</button>
+    <button class="tab" data-page="ai">AI Analysis</button>
+  </nav>
 
-<header>
-  <span class="logo">ACC</span>
-  <span class="title">Adversary Emulation Engine</span>
-  <div class="indicators">
-    <div class="ind"><div class="dot blink" id="dw"></div><span>WAZUH 192.168.70.129</span></div>
-    <div class="ind"><div class="dot blink" id="dv"></div><span>VICTIM 192.168.70.150</span></div>
-    <div class="ind"><div class="dot blink" id="ds"></div><span>WS</span></div>
-    <span class="badge idle" id="run-badge">IDLE</span>
-  </div>
-</header>
-
-<div class="layout">
-  <!-- Kill chain -->
-  <div class="chain-panel">
-    <div class="sect-label">Kill Chain Pipeline</div>
-    <div class="pipeline" id="pipeline"></div>
-  </div>
-
-  <!-- Right -->
-  <div class="right-panel">
-    <div class="metrics">
-      <div class="score-box">
-        <div class="score-lbl">Detected</div>
-        <div class="score-num zero" id="score-num">0<span style="font-size:36px;color:var(--dim)">/7</span></div>
-        <div class="score-sub" id="score-sub">AWAITING RUN</div>
-      </div>
-      <div class="meta-box">
-        <div>
-          <div class="sect-label" style="margin-bottom:6px">Detection Rate</div>
-          <div class="track"><div class="fill" id="fill"></div></div>
+  <main id="page-killchain" class="page active">
+    <div class="kill-main">
+      <section class="chain-col"><div class="panel-label">Kill Chain Pipeline</div><div id="pipeline"><div class="empty">Loading backend chain...</div></div></section>
+      <section class="right-col">
+        <div class="metrics">
+          <div class="score-area">
+            <div class="ring"><svg width="104" height="104" viewBox="0 0 100 100"><circle class="ring-bg" cx="50" cy="50" r="40"/><circle class="ring-fill" id="ring-fill" cx="50" cy="50" r="40"/></svg><div class="ring-center"><div class="ring-num" id="ring-num">0</div><div class="ring-denom" id="ring-denom">/0</div></div></div>
+            <div class="score-meta"><div class="score-label">Detection Rate</div><div class="score-pct" id="score-pct">0%</div><div class="score-sub" id="score-sub">Awaiting backend</div></div>
+          </div>
+          <div class="meta-area"><div><div class="panel-label" style="margin-bottom:6px">Progress</div><div class="track"><div class="fill" id="progress-fill"></div></div></div><div><div class="panel-label" style="margin-bottom:7px">ATT&amp;CK Tactic Coverage</div><div class="tactics" id="tactics"></div></div></div>
         </div>
-        <div>
-          <div class="sect-label" style="margin-bottom:8px">ATT&CK Tactic Coverage</div>
-          <div class="tactics-row" id="tactics"></div>
-        </div>
-      </div>
+        <div class="lower"><section class="sigma-panel"><div class="panel-label" style="display:flex;align-items:center;justify-content:space-between">Sigma Rules - Coverage Gaps<button class="btn success" id="rescan-missed-btn" hidden onclick="rescanMissed()" style="font-size:11px;padding:4px 10px">▶ Scan Missed</button></div><div id="sigma-gaps"><div class="empty">No run results loaded.</div></div></section><section class="log-panel"><div class="panel-label">Live Feed</div><div class="log-feed" id="log-feed"></div></section></div>
+      </section>
     </div>
+    <div class="bottom"><button class="btn primary" id="run-btn">Run Kill Chain</button><button class="btn danger" id="stop-btn" disabled>Stop</button><button class="btn" id="reset-btn">Reset</button><button class="btn" id="demo-btn">Replay Last Run</button><button class="btn" id="report-shortcut">Generate Report</button><div class="step-now">Step: <b id="step-now">None</b></div></div>
+  </main>
 
-    <div class="lower">
-      <div class="sigma-panel">
-        <div class="sect-label">Sigma Rules — Detection Gaps</div>
-        <div id="sigma-wrap"><div class="empty">Run the chain to surface coverage gaps</div></div>
-      </div>
-      <div class="log-panel">
-        <div class="sect-label">Live Feed</div>
-        <div class="log-feed" id="log-feed"></div>
-      </div>
-    </div>
-  </div>
+  <main id="page-report" class="page scroll-page"><div class="page-wrap">
+    <div class="report-toolbar"><div><h1 class="page-title">Security Report</h1><div class="page-sub" id="report-sub">Backend incident and detection engineering view</div></div><button class="btn primary" id="report-btn">Generate From Current Results</button><button class="btn" id="report-download" disabled>Download</button></div>
+    <div class="summary-grid"><div class="metric-card"><div class="metric-label">Detected</div><div class="metric-value" id="rp-detected">0</div></div><div class="metric-card"><div class="metric-label">Total</div><div class="metric-value" id="rp-total">0</div></div><div class="metric-card"><div class="metric-label">Detection Rate</div><div class="metric-value" id="rp-rate">0%</div></div><div class="metric-card"><div class="metric-label">Risk Level</div><div class="metric-value" id="rp-risk">Pending</div></div></div>
+    <div class="risk-banner" id="risk-banner">Run the backend kill chain to populate the assessment.</div>
+    <section class="section"><h2 class="section-title">Executive Summary</h2><div class="report-text" id="executive-summary">No backend results available.</div></section>
+    <section class="section"><h2 class="section-title">Attack Timeline Per Technique</h2><div id="report-timeline"></div></section>
+    <section class="section"><h2 class="section-title">Risk Assessment</h2><div class="report-text" id="risk-assessment">No backend results available.</div></section>
+    <section class="section"><h2 class="section-title">Detection Gaps</h2><div id="report-gaps"><div class="empty">No gap data available.</div></div></section>
+    <section class="section"><h2 class="section-title">Remediation Priorities</h2><div class="report-text" id="remediation">Generate the backend report to load remediation guidance.</div></section>
+    <section class="section"><h2 class="section-title">Full Generated Report</h2><div class="report-text" id="report-text">No generated report loaded.</div></section>
+  </div></main>
 
-  <!-- Bottom -->
-  <div class="bottom">
-    <button class="btn btn-run"   id="btn-run"   onclick="runChain()">▶ Run Kill Chain</button>
-    <button class="btn btn-ghost" id="btn-reset" onclick="resetChain()">↺ Reset</button>
-    <button class="btn btn-ghost" id="btn-demo"  onclick="runDemo()">⚡ Demo Mode</button>
-    <button class="btn btn-ghost" id="btn-report" onclick="generateReport()" style="border-color:var(--accent);color:var(--accent)">✦ AI Report</button>
-    <button class="btn btn-ok"    id="btn-rescan" onclick="rescanWithRules()" style="display:none">⟳ Rescan Threat</button>
-    <div class="status-txt">Step: <b id="step-txt">—</b></div>
-  </div>
-</div>
+  <main id="page-attack" class="page scroll-page"><div class="page-wrap"><div class="attack-top"><div><h1 class="page-title">ATT&amp;CK Navigator</h1><div class="page-sub" id="attack-sub">Waiting for backend chain</div></div><div class="legend"><span class="det">Detected</span><span class="miss">Missed</span><span class="dep">Rule Deployed</span><span>Not in Scope</span></div></div><div class="matrix" id="attack-matrix"></div></div></main>
 
-<!-- Deploy Overlay -->
-<div id="deploy-overlay" class="deploy-overlay">
-  <div class="deploy-terminal">
-    <div class="deploy-titlebar">
-      <div class="dt-dot r"></div><div class="dt-dot y"></div><div class="dt-dot g"></div>
-      <span class="dt-label" id="deploy-label">wazuh@siem: deploying sigma rule</span>
-    </div>
-    <div class="deploy-body" id="deploy-body"></div>
-    <div class="deploy-prog-bar"><div class="deploy-prog-fill" id="deploy-prog"></div></div>
-    <div class="deploy-footer">
-      <span class="deploy-status" id="deploy-status">Deploying...</span>
-      <button class="btn btn-ghost" id="deploy-close-btn" onclick="closeOverlay()" style="font-size:10px;padding:5px 14px;display:none">Close</button>
-    </div>
-  </div>
-</div>
+  <main id="page-sigma" class="page scroll-page"><div class="page-wrap"><div class="sigma-tools"><input class="search" id="sigma-search" placeholder="Search rule, technique, or tactic"><button class="btn filter active" data-filter="all">All</button><button class="btn filter" data-filter="active">Active</button><button class="btn filter" data-filter="gap">Gaps</button><span class="rule-count" id="rule-count"></span><button class="btn" id="sigma-download" style="margin-left:auto">Download All</button></div><div class="sigma-grid" id="sigma-grid"></div></div></main>
 
-<!-- Report Modal -->
-<div class="modal-overlay" id="report-modal">
-  <div class="modal">
-    <div class="modal-header">
-      <span class="modal-title">✦ AI Security Report — Gemini 1.5 Flash</span>
-      <button class="modal-close" onclick="closeReport()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div id="report-generating" class="generating" style="display:none">Generating report with Gemini AI...</div>
-      <div class="report-content" id="report-body"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="downloadReport()">↓ Download .md</button>
-      <button class="btn btn-ghost" onclick="closeReport()">Close</button>
-    </div>
-  </div>
-</div>
+  <main id="page-ai" class="page"><div class="ai-head"><div><h1 class="page-title" style="font-size:18px">Gemini Analysis</h1><div class="page-sub" id="ai-status">Uses the Flask /report endpoint</div></div><button class="btn primary" id="ai-btn">Generate Analysis</button></div><div class="ai-body"><aside class="ai-side"><div class="metric-card"><div class="metric-label">Risk Score</div><div class="metric-value" id="ai-score">0</div></div><div class="metric-card"><div class="metric-label">Risk Level</div><div class="metric-value" id="ai-risk">Pending</div></div><div class="metric-card"><div class="metric-label">Detected</div><div class="metric-value" id="ai-detected">0/0</div></div><div class="metric-card"><div class="metric-label">Gaps</div><div class="metric-value" id="ai-gaps">0</div></div></aside><section class="ai-content"><div class="thinking" id="thinking"><i></i><i></i><i></i><span>Gemini is analyzing backend results...</span></div><div class="ai-output" id="ai-output">Generate an analysis after a backend run completes.</div></section></div></main>
 
-<script>
-const BASE = `http://${location.hostname}:5000`;
+  <div class="deploy-overlay" id="deploy-overlay"><div class="terminal"><div class="term-head"><i class="term-dot r"></i><i class="term-dot y"></i><i class="term-dot g"></i><span class="term-label" id="term-label"></span></div><div class="term-body" id="term-body"></div><div class="term-progress"><div id="term-progress"></div></div><div class="term-foot"><span id="term-status">Deploying...</span><button class="btn" id="term-close" hidden>Close</button></div></div></div>
 
-const CHAIN = [
-  { id:'T1059.001', name:'PowerShell Execution',         tactic:'execution' },
-  { id:'T1547.001', name:'Registry Run Key Persistence', tactic:'persistence' },
-  { id:'T1003.001', name:'LSASS Dump (Mimikatz)',        tactic:'credential-access' },
-  { id:'T1550.002', name:'Pass-the-Hash',                tactic:'lateral-movement' },
-  { id:'T1071.001', name:'C2 Beacon (HTTP)',             tactic:'command-and-control' },
-  { id:'T1490',     name:'Shadow Copy Deletion',         tactic:'impact' },
-  { id:'T1486',     name:'File Encryption (Ransomware)', tactic:'impact' },
-];
+  <script id="sigma-catalog" type="application/json">[{"id":"T1003.001","title":"LSASS Memory Access for Credential Dumping","level":"critical","tactic":"credential-access","yaml":"title: LSASS Memory Access for Credential Dumping\r\nid: c3d4e5f6-a7b8-9012-cdef-012345678902\r\nstatus: experimental\r\ndescription: |\r\n    Detects access to the LSASS process memory, which is used by tools like Mimikatz\r\n    and ProcDump to extract NTLM password hashes. Technique T1003.001 was DETECTED\r\n    during the ACC Hackathon live run via Wazuh alert: \"Windows command prompt started\r\n    by an abnormal process.\" This rule provides a more precise detection.\r\nreferences:\r\n    - https://attack.mitre.org/techniques/T1003/001/\r\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1003.001\r\nauthor: Janus Team — ACC Hackathon 2026\r\ndate: 2026-06-12\r\ntags:\r\n    - attack.credential_access\r\n    - attack.t1003.001\r\nlogsource:\r\n    category: process_access\r\n    product: windows\r\ndetection:\r\n    selection_lsass:\r\n        TargetImage|endswith: '\\lsass.exe'\r\n        GrantedAccess|contains:\r\n            - '0x1010'\r\n            - '0x1410'\r\n            - '0x147a'\r\n            - '0x1fffff'\r\n    selection_tools:\r\n        SourceImage|endswith:\r\n            - '\\procdump.exe'\r\n            - '\\procdump64.exe'\r\n            - '\\mimikatz.exe'\r\n            - '\\wce.exe'\r\n            - '\\pwdump.exe'\r\n    condition: selection_lsass or selection_tools\r\nfalsepositives:\r\n    - Antivirus software accessing LSASS for scanning purposes\r\n    - Windows Defender Credential Guard in some configurations\r\nlevel: critical\r\nfields:\r\n    - ComputerName\r\n    - User\r\n    - SourceImage\r\n    - TargetImage\r\n    - GrantedAccess\r\n"},{"id":"T1016","title":"Network Configuration Discovery via Built-in Windows Tools","level":"low","tactic":"discovery","yaml":"title: Network Configuration Discovery via Built-in Windows Tools\nid: c5d6e7f8-a9b0-1234-2345-678901234567\nstatus: experimental\ndescription: |\n    Detects system network configuration discovery using native tools: ipconfig,\n    arp, route, netstat, nbtstat. Adversaries collect network topology data to\n    identify targets for lateral movement and plan exfiltration paths.\n    Technique T1016 — System Network Configuration Discovery.\n    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.\nreferences:\n    - https://attack.mitre.org/techniques/T1016/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1016\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.discovery\n    - attack.t1016\nlogsource:\n    category: process_creation\n    product: windows\ndetection:\n    selection:\n        EventID: 1\n        Image|endswith:\n            - '\\ipconfig.exe'\n            - '\\arp.exe'\n            - '\\route.exe'\n            - '\\netstat.exe'\n            - '\\nbtstat.exe'\n    condition: selection\nfalsepositives:\n    - Network troubleshooting by IT helpdesk and system administrators\n    - Monitoring agents (Nagios, SolarWinds) collecting network interface state\n    - Automated network diagnostics in build pipelines\nlevel: low\nfields:\n    - ComputerName\n    - User\n    - CommandLine\n    - ParentImage\n"},{"id":"T1018","title":"Remote System Discovery via net view and PowerShell","level":"medium","tactic":"discovery","yaml":"title: Remote System Discovery via net view and PowerShell\nid: d6e7f8a9-b0c1-2345-3456-789012345678\nstatus: experimental\ndescription: |\n    Detects remote host enumeration using net view and PowerShell commands that\n    scan for reachable systems on the local network. Adversaries collect this\n    data to select pivot targets for lateral movement.\n    Technique T1018 — Remote System Discovery.\n    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.\nreferences:\n    - https://attack.mitre.org/techniques/T1018/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1018\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.discovery\n    - attack.t1018\nlogsource:\n    category: process_creation\n    product: windows\ndetection:\n    selection_net_view:\n        EventID: 1\n        Image|endswith:\n            - '\\net.exe'\n            - '\\net1.exe'\n        CommandLine|contains: 'view'\n    selection_ps_discovery:\n        EventID: 1\n        Image|endswith:\n            - '\\powershell.exe'\n            - '\\pwsh.exe'\n        CommandLine|contains:\n            - 'Test-Connection'\n            - 'Get-ADComputer'\n            - 'Resolve-DnsName'\n            - '[System.Net.Dns]::GetHostAddresses'\n    condition: selection_net_view or selection_ps_discovery\nfalsepositives:\n    - Network administrators verifying share availability\n    - Monitoring tools performing reachability checks\n    - Domain management scripts enumerating computers via ADSI\nlevel: medium\nfields:\n    - ComputerName\n    - User\n    - CommandLine\n    - ParentImage\n"},{"id":"T1027","title":"PowerShell Command Obfuscation via Base64 EncodedCommand","level":"medium","tactic":"defense-evasion","yaml":"title: PowerShell Command Obfuscation via Base64 EncodedCommand\nid: a9b0c1d2-e3f4-5678-6789-012345678901\nstatus: experimental\ndescription: |\n    Detects PowerShell launched with the -EncodedCommand (-enc, -ec) flag, which\n    is the primary method adversaries use to pass Base64-encoded payloads to evade\n    command-line logging and signature-based AV. Also detects string concatenation\n    patterns and character substitution commonly used by Invoke-Obfuscation.\n    Technique T1027 — Obfuscated Files or Information.\n    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.\nreferences:\n    - https://attack.mitre.org/techniques/T1027/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1027\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.defense-evasion\n    - attack.t1027\nlogsource:\n    category: process_creation\n    product: windows\ndetection:\n    selection_encoded_cmd:\n        EventID: 1\n        Image|endswith:\n            - '\\powershell.exe'\n            - '\\pwsh.exe'\n        CommandLine|contains:\n            - '-EncodedCommand'\n            - ' -enc '\n            - ' -ec '\n    selection_char_obfuscation:\n        EventID: 1\n        Image|endswith:\n            - '\\powershell.exe'\n            - '\\pwsh.exe'\n        CommandLine|contains:\n            - '[char]'\n            - '[Convert]::FromBase64String'\n            - 'IEX('\n            - 'Invoke-Expression'\n        CommandLine|contains:\n            - '0x'\n    filter_known_tools:\n        CommandLine|contains:\n            - 'SQBuAHYAbwBrAGUALQBXAGUAYgBSAGUAcQB1AGUAcwB0'\n    condition: (selection_encoded_cmd or selection_char_obfuscation) and not filter_known_tools\nfalsepositives:\n    - Legitimate PowerShell automation with encoded parameters for Unicode support\n    - Management tools (PDQ Deploy, ConnectWise) using encoded commands\n    - Some vendor software management scripts\nlevel: medium\nfields:\n    - ComputerName\n    - User\n    - CommandLine\n    - ParentImage\n"},{"id":"T1048","title":"Data Exfiltration over Non-Standard Protocol and Port","level":"high","tactic":"exfiltration","yaml":"title: Data Exfiltration over Non-Standard Protocol and Port\nid: c1d2e3f4-a5b6-7890-8901-234567890123\nstatus: experimental\ndescription: |\n    Detects outbound network connections from non-browser, non-system processes\n    targeting uncommon ports associated with exfiltration channels: FTP (21),\n    raw SSH (22 from non-SSH clients), and common C2/exfil ports (4444, 6667,\n    8443, 9001). Monitors Sysmon EID 3 (NetworkConnect).\n    Technique T1048 — Exfiltration Over Alternative Protocol.\n    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.\nreferences:\n    - https://attack.mitre.org/techniques/T1048/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1048\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.exfiltration\n    - attack.t1048\nlogsource:\n    product: windows\n    service: sysmon\ndetection:\n    selection:\n        EventID: 3\n        Initiated: 'true'\n        DestinationPort:\n            - 21\n            - 4444\n            - 6667\n            - 6666\n            - 8443\n            - 9001\n            - 1337\n    filter_browsers:\n        Image|endswith:\n            - '\\chrome.exe'\n            - '\\firefox.exe'\n            - '\\msedge.exe'\n            - '\\iexplore.exe'\n            - '\\opera.exe'\n            - '\\brave.exe'\n    filter_system:\n        Image|startswith:\n            - 'C:\\Windows\\System32\\'\n            - 'C:\\Windows\\SysWOW64\\'\n    filter_known_ftp:\n        Image|endswith:\n            - '\\filezilla.exe'\n            - '\\winscp.exe'\n        DestinationPort: 21\n    condition: selection and not filter_browsers and not filter_system and not filter_known_ftp\nfalsepositives:\n    - Authorized SSH/FTP clients used by IT teams\n    - VPN clients and specialized industrial software\n    - Legitimate remote management tools on unusual ports\nlevel: high\nfields:\n    - ComputerName\n    - User\n    - Image\n    - DestinationIp\n    - DestinationPort\n    - Protocol\n"},{"id":"T1055","title":"Suspicious Process Injection via CreateRemoteThread","level":"high","tactic":"defense-evasion","yaml":"title: Suspicious Process Injection via CreateRemoteThread\nid: d0e1f2a3-b4c5-6789-def0-123456789012\nstatus: experimental\ndescription: |\n    Detects process injection via CreateRemoteThread targeting common host\n    processes. Sysmon EID 8 fires when a thread is created in a remote process.\n    A null StartModule indicates shellcode injection (no backing DLL on disk).\n    Technique T1055 — Process Injection.\n    ACC Hackathon 2026 — Final MVP expansion.\nreferences:\n    - https://attack.mitre.org/techniques/T1055/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1055\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.defense-evasion\n    - attack.privilege-escalation\n    - attack.t1055\nlogsource:\n    product: windows\n    service: sysmon\ndetection:\n    selection:\n        EventID: 8\n        TargetImage|endswith:\n            - '\\notepad.exe'\n            - '\\explorer.exe'\n            - '\\svchost.exe'\n            - '\\RuntimeBroker.exe'\n            - '\\SearchIndexer.exe'\n            - '\\spoolsv.exe'\n        StartModule: ''\n    filter_security_software:\n        SourceImage|startswith:\n            - 'C:\\Windows\\System32\\'\n            - 'C:\\Windows\\SysWOW64\\'\n            - 'C:\\Program Files\\Windows Defender\\'\n    condition: selection and not filter_security_software\nfalsepositives:\n    - Windows Defender ATP and EDR products injecting monitoring threads\n    - Anti-cheat software in gaming environments\nlevel: high\nfields:\n    - ComputerName\n    - User\n    - SourceImage\n    - TargetImage\n    - StartAddress\n    - StartModule\n"},{"id":"T1059.001","title":"Suspicious PowerShell Execution from Abnormal Parent Process","level":"medium","tactic":"execution","yaml":"title: Suspicious PowerShell Execution from Abnormal Parent Process\r\nid: a1b2c3d4-e5f6-7890-abcd-ef1234567890\r\nstatus: experimental\r\ndescription: |\r\n    Detects PowerShell spawned from an unusual parent process.\r\n    Technique T1059.001 was DETECTED during the ACC Hackathon live run.\r\n    Wazuh alert fired: \"Windows command prompt started by an abnormal process.\"\r\nreferences:\r\n    - https://attack.mitre.org/techniques/T1059/001/\r\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1059.001\r\nauthor: Janus Team — ACC Hackathon 2026\r\ndate: 2026-06-12\r\ntags:\r\n    - attack.execution\r\n    - attack.t1059.001\r\nlogsource:\r\n    category: process_creation\r\n    product: windows\r\ndetection:\r\n    selection:\r\n        Image|endswith:\r\n            - '\\powershell.exe'\r\n            - '\\pwsh.exe'\r\n        ParentImage|endswith:\r\n            - '\\cmd.exe'\r\n            - '\\wscript.exe'\r\n            - '\\cscript.exe'\r\n            - '\\mshta.exe'\r\n            - '\\rundll32.exe'\r\n            - '\\regsvr32.exe'\r\n            - '\\svchost.exe'\r\n            - '\\explorer.exe'\r\n    filter_system:\r\n        ParentImage|startswith: 'C:\\Windows\\System32\\'\r\n        CommandLine|contains: '-NonInteractive'\r\n    condition: selection and not filter_system\r\nfalsepositives:\r\n    - Administrative scripts invoked by task scheduler through svchost\r\n    - Legitimate software installers launching PowerShell from explorer.exe\r\nlevel: medium\r\nfields:\r\n    - ComputerName\r\n    - User\r\n    - CommandLine\r\n    - ParentImage\r\n    - ParentCommandLine\r\n"},{"id":"T1069.001","title":"Local Group Enumeration — net localgroup and PowerShell Equivalents","level":"low","tactic":"discovery","yaml":"title: Local Group Enumeration — net localgroup and PowerShell Equivalents\nid: b4c5d6e7-f8a9-0123-1234-567890123456\nstatus: experimental\ndescription: |\n    Detects enumeration of local Windows groups via net localgroup and PowerShell\n    Get-LocalGroup. Adversaries query local groups immediately after initial access\n    to identify privileged accounts and plan privilege escalation.\n    Technique T1069.001 — Permission Groups Discovery: Local Groups.\n    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.\nreferences:\n    - https://attack.mitre.org/techniques/T1069/001/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1069.001\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.discovery\n    - attack.t1069.001\nlogsource:\n    category: process_creation\n    product: windows\ndetection:\n    selection_net:\n        EventID: 1\n        Image|endswith:\n            - '\\net.exe'\n            - '\\net1.exe'\n        CommandLine|contains: 'localgroup'\n    selection_ps:\n        EventID: 1\n        Image|endswith:\n            - '\\powershell.exe'\n            - '\\pwsh.exe'\n        CommandLine|contains:\n            - 'Get-LocalGroup'\n            - 'Get-LocalGroupMember'\n    condition: selection_net or selection_ps\nfalsepositives:\n    - System administration scripts performing group audits\n    - Active Directory management tools (RSAT)\n    - SCCM compliance baseline checks\nlevel: low\nfields:\n    - ComputerName\n    - User\n    - CommandLine\n    - ParentImage\n"},{"id":"T1070.004","title":"Indicator Removal via Forced File Deletion — del /f and Remove-Item -Force","level":"medium","tactic":"defense-evasion","yaml":"title: Indicator Removal via Forced File Deletion — del /f and Remove-Item -Force\nid: f8a9b0c1-d2e3-4567-5678-901234567890\nstatus: experimental\ndescription: |\n    Detects forced deletion of files from staging or temp directories commonly\n    used to cover tracks after malware execution. Monitors both Sysmon EID 23\n    (FileDelete with ArchiveDirectory) and process creation events for deletion\n    commands in sensitive paths.\n    Technique T1070.004 — Indicator Removal: File Deletion.\n    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.\nreferences:\n    - https://attack.mitre.org/techniques/T1070/004/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1070.004\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.defense-evasion\n    - attack.t1070.004\nlogsource:\n    product: windows\n    service: sysmon\ndetection:\n    selection_file_delete:\n        EventID: 23\n        TargetFilename|contains:\n            - '\\Windows\\Temp\\'\n            - '\\AppData\\Local\\Temp\\'\n            - '\\Users\\Public\\'\n            - '\\PerfLogs\\'\n        TargetFilename|endswith:\n            - '.exe'\n            - '.dll'\n            - '.ps1'\n            - '.bat'\n            - '.vbs'\n            - '.log'\n    selection_cmd_del:\n        EventID: 1\n        Image|endswith: '\\cmd.exe'\n        CommandLine|contains:\n            - 'del /f /q'\n            - 'rd /s /q'\n            - 'rmdir /s /q'\n    selection_ps_remove:\n        EventID: 1\n        Image|endswith:\n            - '\\powershell.exe'\n            - '\\pwsh.exe'\n        CommandLine|contains:\n            - 'Remove-Item'\n        CommandLine|contains:\n            - '-Force'\n            - '-Recurse'\n    condition: selection_file_delete or selection_cmd_del or selection_ps_remove\nfalsepositives:\n    - Legitimate cleanup scripts in software deployment pipelines\n    - Temporary file cleanup by browsers and update mechanisms\n    - MSI installer cleanup phases\nlevel: medium\nfields:\n    - ComputerName\n    - User\n    - TargetFilename\n    - Image\n    - CommandLine\n"},{"id":"T1071.001","title":"Suspicious Outbound HTTP Beacon from Non-Browser Process","level":"medium","tactic":"command-and-control","yaml":"title: Suspicious Outbound HTTP Beacon from Non-Browser Process\r\nid: e5f6a7b8-c9d0-1234-ef01-234567890124\r\nstatus: experimental\r\ndescription: |\r\n    Detects outbound HTTP/HTTPS connections from processes that do not typically\r\n    generate web traffic, which may indicate C2 beacon activity. Technique T1071.001\r\n    was DETECTED during the ACC Hackathon live run via Wazuh alert: \"Windows command\r\n    prompt started by an abnormal process.\"\r\nreferences:\r\n    - https://attack.mitre.org/techniques/T1071/001/\r\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1071.001\r\nauthor: Janus Team — ACC Hackathon 2026\r\ndate: 2026-06-12\r\ntags:\r\n    - attack.command_and_control\r\n    - attack.t1071.001\r\nlogsource:\r\n    category: network_connection\r\n    product: windows\r\ndetection:\r\n    selection:\r\n        Initiated: 'true'\r\n        DestinationPort:\r\n            - 80\r\n            - 443\r\n            - 8080\r\n            - 8443\r\n        Image|endswith:\r\n            - '\\powershell.exe'\r\n            - '\\cmd.exe'\r\n            - '\\wscript.exe'\r\n            - '\\cscript.exe'\r\n            - '\\mshta.exe'\r\n            - '\\rundll32.exe'\r\n            - '\\regsvr32.exe'\r\n    filter_update:\r\n        DestinationIp|startswith:\r\n            - '10.'\r\n            - '192.168.'\r\n            - '172.16.'\r\n    condition: selection and not filter_update\r\nfalsepositives:\r\n    - PowerShell scripts that legitimately download updates or configuration\r\n    - WSUS or SCCM agents using PowerShell for updates\r\nlevel: medium\r\nfields:\r\n    - ComputerName\r\n    - User\r\n    - Image\r\n    - DestinationIp\r\n    - DestinationPort\r\n    - DestinationHostname\r\n"},{"id":"T1082","title":"System Information Discovery via Built-in Windows Tools","level":"low","tactic":"discovery","yaml":"title: System Information Discovery via Built-in Windows Tools\nid: f2a3b4c5-d6e7-8901-f012-345678901234\nstatus: experimental\ndescription: |\n    Detects execution of native Windows commands used to enumerate host information\n    during the discovery phase. Adversaries run systeminfo, hostname, and winver\n    to fingerprint the target before subsequent exploitation steps.\n    Technique T1082 — System Information Discovery.\n    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.\nreferences:\n    - https://attack.mitre.org/techniques/T1082/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1082\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.discovery\n    - attack.t1082\nlogsource:\n    category: process_creation\n    product: windows\ndetection:\n    selection_tools:\n        EventID: 1\n        Image|endswith:\n            - '\\systeminfo.exe'\n            - '\\hostname.exe'\n    selection_cmd_ver:\n        EventID: 1\n        Image|endswith: '\\cmd.exe'\n        CommandLine|contains:\n            - 'systeminfo'\n            - 'hostname'\n            - 'winver'\n    filter_msi:\n        ParentImage|endswith: '\\msiexec.exe'\n        User|contains:\n            - 'SYSTEM'\n    condition: (selection_tools or selection_cmd_ver) and not filter_msi\nfalsepositives:\n    - IT asset management and inventory collection agents (SCCM, Lansweeper)\n    - Helpdesk scripts gathering system data during remote support sessions\n    - Scheduled diagnostic tasks\nlevel: low\nfields:\n    - ComputerName\n    - User\n    - CommandLine\n    - ParentImage\n"},{"id":"T1083","title":"File and Directory Discovery via Built-in Enumeration Tools","level":"low","tactic":"discovery","yaml":"title: File and Directory Discovery via Built-in Enumeration Tools\nid: a3b4c5d6-e7f8-9012-0123-456789012345\nstatus: experimental\ndescription: |\n    Detects broad file and directory enumeration using native Windows tools such\n    as dir /s, tree /f, and PowerShell Get-ChildItem with Recurse. Adversaries\n    use these commands during discovery to locate valuable data before collection\n    or exfiltration.\n    Technique T1083 — File and Directory Discovery.\n    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.\nreferences:\n    - https://attack.mitre.org/techniques/T1083/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1083\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.discovery\n    - attack.t1083\nlogsource:\n    category: process_creation\n    product: windows\ndetection:\n    selection_dir:\n        EventID: 1\n        Image|endswith: '\\cmd.exe'\n        CommandLine|contains:\n            - 'dir /s'\n            - 'dir /b /s'\n            - 'tree /f'\n    selection_ps_recurse:\n        EventID: 1\n        Image|endswith:\n            - '\\powershell.exe'\n            - '\\pwsh.exe'\n        CommandLine|contains:\n            - 'Get-ChildItem'\n            - 'gci '\n        CommandLine|contains:\n            - '-Recurse'\n            - '-rec '\n    condition: selection_dir or selection_ps_recurse\nfalsepositives:\n    - Backup software performing file enumeration before backup\n    - Antivirus full-system scans\n    - Developer IDE project indexing operations\n    - Robocopy / xcopy mirror operations\nlevel: low\nfields:\n    - ComputerName\n    - User\n    - CommandLine\n    - ParentImage\n"},{"id":"T1112","title":"Suspicious Registry Modification of Security and Policy Keys","level":"medium","tactic":"defense-evasion","yaml":"title: Suspicious Registry Modification of Security and Policy Keys\nid: b0c1d2e3-f4a5-6789-7890-123456789012\nstatus: experimental\ndescription: |\n    Detects modifications to Windows Registry keys controlling security policies,\n    service configurations, and execution options via Sysmon EID 13 (RegistryValueSet).\n    Adversaries modify registry to persist, disable defenses, or set up IFEO debugger\n    hijacks.\n    Technique T1112 — Modify Registry.\n    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.\nreferences:\n    - https://attack.mitre.org/techniques/T1112/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1112\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.defense-evasion\n    - attack.t1112\nlogsource:\n    product: windows\n    service: sysmon\ndetection:\n    selection:\n        EventID: 13\n        TargetObject|contains:\n            - '\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\'\n            - '\\SYSTEM\\CurrentControlSet\\Services\\'\n            - '\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\'\n            - '\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders\\'\n            - '\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\'\n    filter_installer:\n        Image|contains:\n            - 'msiexec.exe'\n            - 'TrustedInstaller'\n            - 'WinSxS'\n        User|contains: 'SYSTEM'\n    condition: selection and not filter_installer\nfalsepositives:\n    - Software installation and configuration via MSI packages\n    - Group Policy application by svchost / gpsvc\n    - Windows Update applying policy changes\nlevel: medium\nfields:\n    - ComputerName\n    - User\n    - TargetObject\n    - Details\n    - Image\n"},{"id":"T1134","title":"Access Token Manipulation — Privilege Enumeration and Impersonation","level":"medium","tactic":"privilege-escalation","yaml":"title: Access Token Manipulation — Privilege Enumeration and Impersonation\nid: e1f2a3b4-c5d6-7890-ef01-234567890123\nstatus: experimental\ndescription: |\n    Detects access token manipulation by monitoring privilege enumeration via\n    whoami /priv and execution of known token impersonation tools.\n    Full token manipulation also produces Sysmon EID 1 events when spawning\n    processes under impersonated tokens.\n    Technique T1134 — Access Token Manipulation.\n    ACC Hackathon 2026 — Final MVP expansion.\nreferences:\n    - https://attack.mitre.org/techniques/T1134/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1134\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.privilege-escalation\n    - attack.defense-evasion\n    - attack.t1134\nlogsource:\n    category: process_creation\n    product: windows\ndetection:\n    selection_whoami_priv:\n        EventID: 1\n        Image|endswith: '\\whoami.exe'\n        CommandLine|contains:\n            - '/priv'\n            - '/all'\n    selection_token_tools:\n        EventID: 1\n        Image|endswith:\n            - '\\incognito.exe'\n            - '\\juicy-potato.exe'\n            - '\\sweet-potato.exe'\n            - '\\print-spoofer.exe'\n    selection_ps_impersonation:\n        EventID: 1\n        Image|endswith:\n            - '\\powershell.exe'\n            - '\\pwsh.exe'\n        CommandLine|contains:\n            - 'ImpersonateNamedPipeClient'\n            - 'DuplicateTokenEx'\n            - 'LogonUser'\n            - 'CreateProcessWithTokenW'\n    condition: selection_whoami_priv or selection_token_tools or selection_ps_impersonation\nfalsepositives:\n    - Administrative scripts checking current user privileges\n    - Helpdesk tools enumerating user rights for troubleshooting\nlevel: medium\nfields:\n    - ComputerName\n    - User\n    - CommandLine\n    - ParentImage\n    - ParentCommandLine\n"},{"id":"T1486","title":"Ransomware File Encryption via Suspicious File Extension Writes","level":"critical","tactic":"impact","yaml":"title: Ransomware File Encryption via Suspicious File Extension Writes\r\nid: a7b8c9d0-e1f2-3456-0123-456789012346\r\nstatus: experimental\r\ndescription: |\r\n    Detects mass creation of files with ransomware-associated extensions, indicating\r\n    active file encryption by a ransomware payload. Technique T1486 was NOT DETECTED\r\n    during the ACC Hackathon live run — Wazuh had no Sysmon EID 11 rules monitoring\r\n    for ransomware file extension patterns. This rule closes that gap.\r\nreferences:\r\n    - https://attack.mitre.org/techniques/T1486/\r\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1486\r\nauthor: Janus Team — ACC Hackathon 2026\r\ndate: 2026-06-12\r\ntags:\r\n    - attack.impact\r\n    - attack.t1486\r\nlogsource:\r\n    category: file_event\r\n    product: windows\r\ndetection:\r\n    selection:\r\n        EventID: 11\r\n        TargetFilename|endswith:\r\n            - '.encrypted'\r\n            - '.enc'\r\n            - '.locked'\r\n            - '.crypted'\r\n            - '.crypt'\r\n            - '.ryk'\r\n            - '.makop'\r\n            - '.lckd'\r\n            - '.ransom'\r\n    filter_legit:\r\n        Image|startswith:\r\n            - 'C:\\Program Files\\'\r\n            - 'C:\\Program Files (x86)\\'\r\n            - 'C:\\Windows\\System32\\'\r\n    condition: selection and not filter_legit\r\nfalsepositives:\r\n    - Legitimate encryption software writing files with .enc extension (e.g. GPG)\r\n    - Development environments testing encryption libraries\r\nlevel: critical\r\nfields:\r\n    - ComputerName\r\n    - User\r\n    - Image\r\n    - TargetFilename\r\n"},{"id":"T1490","title":"Volume Shadow Copy Deletion via vssadmin or wmic","level":"critical","tactic":"impact","yaml":"title: Volume Shadow Copy Deletion via vssadmin or wmic\r\nid: f6a7b8c9-d0e1-2345-f012-345678901235\r\nstatus: experimental\r\ndescription: |\r\n    Detects deletion of Volume Shadow Copies using vssadmin.exe or wmic, a standard\r\n    pre-encryption step in ransomware kill chains that destroys Windows recovery\r\n    points. Technique T1490 was NOT DETECTED during the ACC Hackathon live run —\r\n    no Wazuh rule existed targeting vssadmin.exe with deletion arguments.\r\n    This rule closes that gap.\r\nreferences:\r\n    - https://attack.mitre.org/techniques/T1490/\r\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1490\r\nauthor: Janus Team — ACC Hackathon 2026\r\ndate: 2026-06-12\r\ntags:\r\n    - attack.impact\r\n    - attack.t1490\r\nlogsource:\r\n    category: process_creation\r\n    product: windows\r\ndetection:\r\n    selection_vssadmin:\r\n        Image|endswith: '\\vssadmin.exe'\r\n        CommandLine|contains|all:\r\n            - 'delete'\r\n            - 'shadows'\r\n    selection_wmic:\r\n        Image|endswith: '\\wmic.exe'\r\n        CommandLine|contains|all:\r\n            - 'shadowcopy'\r\n            - 'delete'\r\n    selection_wbadmin:\r\n        Image|endswith: '\\wbadmin.exe'\r\n        CommandLine|contains|all:\r\n            - 'delete'\r\n            - 'catalog'\r\n    condition: selection_vssadmin or selection_wmic or selection_wbadmin\r\nfalsepositives:\r\n    - Legitimate backup software that manages shadow copies\r\n    - System administrators manually managing disk space\r\nlevel: critical\r\nfields:\r\n    - ComputerName\r\n    - User\r\n    - Image\r\n    - CommandLine\r\n    - ParentImage\r\n    - ParentCommandLine\r\n"},{"id":"T1547.001","title":"Registry Run Key Persistence via Sysmon","level":"high","tactic":"persistence","yaml":"title: Registry Run Key Persistence via Sysmon\r\nid: b2c3d4e5-f6a7-8901-bcde-f01234567891\r\nstatus: experimental\r\ndescription: |\r\n    Detects modification of HKCU or HKLM Run/RunOnce registry keys used to establish\r\n    persistence across reboots. Technique T1547.001 was NOT DETECTED during the ACC\r\n    Hackathon live run — Wazuh had no Sysmon EID 12/13 rules configured for these\r\n    paths. This rule closes that gap.\r\nreferences:\r\n    - https://attack.mitre.org/techniques/T1547/001/\r\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1547.001\r\nauthor: Janus Team — ACC Hackathon 2026\r\ndate: 2026-06-12\r\ntags:\r\n    - attack.persistence\r\n    - attack.t1547.001\r\nlogsource:\r\n    product: windows\r\n    category: registry_set\r\ndetection:\r\n    selection:\r\n        EventID:\r\n            - 12\r\n            - 13\r\n            - 14\r\n        TargetObject|contains:\r\n            - '\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run'\r\n            - '\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce'\r\n            - '\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run'\r\n    filter_legitimate:\r\n        Image|startswith:\r\n            - 'C:\\Program Files\\'\r\n            - 'C:\\Program Files (x86)\\'\r\n            - 'C:\\Windows\\System32\\'\r\n    condition: selection and not filter_legitimate\r\nfalsepositives:\r\n    - Legitimate software adding startup entries during installation\r\n    - Windows Update mechanisms\r\nlevel: high\r\nfields:\r\n    - ComputerName\r\n    - User\r\n    - TargetObject\r\n    - Details\r\n    - Image\r\n"},{"id":"T1550.002","title":"Pass-the-Hash Authentication via NTLM","level":"high","tactic":"lateral-movement","yaml":"title: Pass-the-Hash Authentication via NTLM\r\nid: d4e5f6a7-b8c9-0123-def0-123456789013\r\nstatus: experimental\r\ndescription: |\r\n    Detects Pass-the-Hash lateral movement by identifying NTLM network logon events\r\n    from non-standard processes. Technique T1550.002 was DETECTED during the ACC\r\n    Hackathon live run via Wazuh alert: \"Windows logon success.\" This rule adds\r\n    additional context by correlating with the source process.\r\nreferences:\r\n    - https://attack.mitre.org/techniques/T1550/002/\r\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1550.002\r\nauthor: Janus Team — ACC Hackathon 2026\r\ndate: 2026-06-12\r\ntags:\r\n    - attack.lateral_movement\r\n    - attack.t1550.002\r\nlogsource:\r\n    product: windows\r\n    service: security\r\ndetection:\r\n    selection:\r\n        EventID: 4624\r\n        LogonType: 3\r\n        AuthenticationPackageName: NTLM\r\n        WorkstationName: '%Workstations%'\r\n    filter_local:\r\n        IpAddress:\r\n            - '127.0.0.1'\r\n            - '::1'\r\n    filter_machine:\r\n        SubjectUserName|endswith: '$'\r\n    condition: selection and not filter_local and not filter_machine\r\nfalsepositives:\r\n    - Legitimate NTLM authentication in environments that have not migrated to Kerberos\r\n    - Network shares accessed via mapped drives using NTLM\r\nlevel: high\r\nfields:\r\n    - ComputerName\r\n    - SubjectUserName\r\n    - TargetUserName\r\n    - IpAddress\r\n    - LogonType\r\n    - AuthenticationPackageName\r\n"},{"id":"T1562.001","title":"Windows Defender Disabled via Set-MpPreference or sc.exe","level":"critical","tactic":"defense-evasion","yaml":"title: Windows Defender Disabled via Set-MpPreference or sc.exe\nid: e7f8a9b0-c1d2-3456-4567-890123456789\nstatus: experimental\ndescription: |\n    Detects attempts to disable Windows Defender real-time protection using\n    PowerShell Set-MpPreference or the sc.exe service control utility.\n    Adversaries disable AV before dropping malware payloads to avoid detection.\n    Technique T1562.001 — Impair Defenses: Disable or Modify Tools.\n    ACC Hackathon 2026 — Final MVP expansion. Atomic Red Team Test 1.\nreferences:\n    - https://attack.mitre.org/techniques/T1562/001/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1562.001\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.defense-evasion\n    - attack.t1562.001\nlogsource:\n    category: process_creation\n    product: windows\ndetection:\n    selection_set_mp_pref:\n        EventID: 1\n        Image|endswith:\n            - '\\powershell.exe'\n            - '\\pwsh.exe'\n        CommandLine|contains: 'Set-MpPreference'\n        CommandLine|contains:\n            - '-DisableRealtimeMonitoring'\n            - '-DisableBehaviorMonitoring'\n            - '-DisableIOAVProtection'\n            - '-DisableScriptScanning'\n            - '-DisableAntivirusProtection'\n    selection_sc_stop:\n        EventID: 1\n        Image|endswith: '\\sc.exe'\n        CommandLine|contains:\n            - 'stop WinDefend'\n            - 'stop SecurityHealthService'\n            - 'config WinDefend start= disabled'\n    selection_reg_disable:\n        EventID: 1\n        Image|endswith: '\\reg.exe'\n        CommandLine|contains:\n            - 'DisableAntiSpyware'\n            - 'DisableRealtimeMonitoring'\n            - 'DisableAntivirusProtection'\n    condition: selection_set_mp_pref or selection_sc_stop or selection_reg_disable\nfalsepositives:\n    - Security team temporarily disabling AV for authorized testing\n    - System re-imaging and deployment processes\nlevel: critical\nfields:\n    - ComputerName\n    - User\n    - CommandLine\n    - ParentImage\n"},{"id":"T1566.001","title":"Suspicious Email Attachment Dropped — Spearphishing","level":"high","tactic":"initial-access","yaml":"title: Suspicious Email Attachment Dropped — Spearphishing\nid: c9d0e1f2-a3b4-5678-cdef-012345678901\nstatus: experimental\ndescription: |\n    Detects suspicious file creation in common download locations matching\n    office document or script extensions typically delivered via phishing email.\n    Technique T1566.001 was added in the ACC Hackathon Final MVP expansion.\n    Atomic Red Team Test 1 creates a malicious attachment file; Sysmon EID 11\n    captures the FileCreate event.\nreferences:\n    - https://attack.mitre.org/techniques/T1566/001/\n    - https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1566.001\n    - https://github.com/mukul975/Anthropic-Cybersecurity-Skills/tree/main/skills/building-detection-rules-with-sigma\nauthor: Janus Team — ACC Hackathon 2026\ndate: 2026-06-16\ntags:\n    - attack.initial-access\n    - attack.t1566.001\nlogsource:\n    category: file_event\n    product: windows\ndetection:\n    selection:\n        EventID: 11\n        TargetFilename|contains:\n            - '\\Downloads\\'\n            - '\\AppData\\Local\\Temp\\'\n            - '\\Users\\Public\\'\n        TargetFilename|endswith:\n            - '.docm'\n            - '.xlsm'\n            - '.pptm'\n            - '.hta'\n            - '.js'\n            - '.vbs'\n            - '.wsf'\n            - '.lnk'\n            - '.ps1'\n            - '.iso'\n            - '.img'\n    filter_legitimate:\n        Image|startswith:\n            - 'C:\\Windows\\System32\\'\n            - 'C:\\Program Files\\Microsoft Office\\'\n            - 'C:\\Program Files (x86)\\Microsoft Office\\'\n    condition: selection and not filter_legitimate\nfalsepositives:\n    - Legitimate document downloads from corporate email clients\n    - IT distribution of authorized scripts via email\n    - Browser download of office files from trusted portals\nlevel: high\nfields:\n    - ComputerName\n    - User\n    - TargetFilename\n    - Image\n"}]</script>
+  <script>
+    const BASE = 'http://' + (location.hostname || '127.0.0.1') + ':5000';
+    const CIRC = 2 * Math.PI * 40;
+    const SIGMA_CATALOG = JSON.parse(document.getElementById('sigma-catalog').textContent);
+    let chain = [], results = [], sigmaGaps = [], reportText = '', running = false, chainComplete = false;
+    let states = {}, deployedRules = new Set(), sigmaFilter = 'all';
 
-const TACTIC_NAMES = {
-  'execution':'Execution','persistence':'Persistence','credential-access':'Cred. Access',
-  'lateral-movement':'Lateral Mvmt','command-and-control':'C2','impact':'Impact',
-};
+    const byId = id => document.getElementById(id);
+    const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const titleCase = value => String(value || '').replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+    const resultMap = () => new Map(results.map(r => [r.id, r]));
+    const effectiveDetected = id => states[id] === 'detected';
 
-let states = {};
-let running = false;
+    function showPage(name) {
+      document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.page === name));
+      if (name === 'attack') renderAttackMatrix();
+      if (name === 'sigma') renderSigmaLibrary();
+      if (name === 'report') renderReport();
+      if (name === 'ai') updateRiskMetrics();
+    }
 
-// ── Build UI ──────────────────────────────────────────────────────────────────
-function buildPipeline() {
-  const el = document.getElementById('pipeline');
-  el.innerHTML = '';
-  CHAIN.forEach((s, i) => {
-    states[s.id] = 'pending';
-    el.insertAdjacentHTML('beforeend', `
-      <div class="step-row" id="row-${s.id}">
-        <div class="step-pipe">
-          <div class="node" id="nd-${s.id}">?</div>
-          ${i < CHAIN.length-1 ? `<div class="vline" id="vl-${s.id}"></div>` : ''}
-        </div>
-        <div class="step-info">
-          <div class="step-tid" id="tid-${s.id}">${s.id}</div>
-          <div class="step-name">${s.name}</div>
-          <div class="step-tac">${s.tactic}</div>
-          <div class="step-st"  id="st-${s.id}"></div>
-          <div class="step-alt" id="al-${s.id}"></div>
-        </div>
-      </div>`);
-  });
-}
+    function buildPipeline() {
+      byId('pipeline').innerHTML = chain.length ? chain.map((s,i) =>
+        '<div class="step-card" id="card-' + esc(s.id) + '"><div class="card-top"><span class="card-id">' + esc(s.id) + '</span><span class="card-tactic">' + esc(titleCase(s.tactic)) + '</span></div><div class="card-name">' + esc(s.name) + '</div><div class="card-state" id="state-' + esc(s.id) + '"></div><div class="card-alert" id="alert-' + esc(s.id) + '"></div></div>' +
+        (i < chain.length - 1 ? '<div class="connector" id="conn-' + esc(s.id) + '"></div>' : '')
+      ).join('') : '<div class="empty">Backend chain is unavailable.</div>';
+      const tactics = [...new Set(chain.map(s => s.tactic))];
+      byId('tactics').innerHTML = tactics.map(t => '<span class="tactic" id="tactic-' + esc(t) + '">' + esc(titleCase(t)) + '</span>').join('');
+      chain.forEach(s => { if (!states[s.id]) states[s.id] = 'pending'; updateCard(s.id); });
+      updateScore();
+    }
 
-function buildTactics() {
-  const el = document.getElementById('tactics');
-  el.innerHTML = '';
-  const seen = new Set();
-  CHAIN.forEach(s => {
-    if (seen.has(s.tactic)) return;
-    seen.add(s.tactic);
-    el.insertAdjacentHTML('beforeend', `<div class="tc" id="tc-${s.tactic}">${TACTIC_NAMES[s.tactic]||s.tactic}</div>`);
-  });
-}
+    function updateCard(id, alerts) {
+      const card = byId('card-' + id); if (!card) return;
+      const state = states[id] || 'pending';
+      const labels = {pending:'Pending',running:'Executing',waiting:'Waiting for Wazuh',detected:'Detected',missed:'Not detected'};
+      card.className = 'step-card ' + state;
+      byId('state-' + id).textContent = labels[state] || state;
+      const result = resultMap().get(id);
+      const evidence = alerts?.[0]?.rule_desc || result?.alerts?.[0]?.rule_desc || '';
+      byId('alert-' + id).textContent = evidence;
+    }
 
-// ── State ─────────────────────────────────────────────────────────────────────
-const ICONS = { pending:'?', running:'●', detected:'✓', missed:'✗' };
-const LABELS= { running:'EXECUTING...', waiting:'WAITING FOR WAZUH...', detected:'DETECTED', missed:'NOT DETECTED', pending:'' };
+    function setState(id, state, alerts=[]) {
+      states[id] = state; updateCard(id, alerts); updateScore(); renderAttackMatrix(); renderReport(); updateRiskMetrics();
+    }
 
-function setState(tid, state, alerts=[]) {
-  states[tid] = state;
-  const nd  = document.getElementById(`nd-${tid}`);
-  const tid_= document.getElementById(`tid-${tid}`);
-  const st  = document.getElementById(`st-${tid}`);
-  const al  = document.getElementById(`al-${tid}`);
-  nd.className  = `node ${state}`;
-  tid_.className= `step-tid ${state}`;
-  st.className  = `step-st ${state}`;
-  nd.textContent= ICONS[state] || '?';
-  st.textContent= LABELS[state] || '';
-  al.textContent= alerts[0]?.rule_desc ? `→ ${alerts[0].rule_desc}` : '';
-}
+    function updateScore() {
+      const total = chain.length;
+      const detected = chain.filter(s => effectiveDetected(s.id)).length;
+      const completed = chain.filter(s => ['detected','missed'].includes(states[s.id])).length;
+      const rate = total ? Math.round(detected / total * 100) : 0;
+      byId('ring-fill').style.strokeDashoffset = CIRC * (1 - (total ? detected/total : 0));
+      byId('ring-fill').className.baseVal = 'ring-fill' + (detected === total && total ? ' full' : '');
+      byId('ring-num').textContent = detected; byId('ring-denom').textContent = '/' + total;
+      byId('score-pct').textContent = rate + '%'; byId('score-sub').textContent = chainComplete ? 'Backend run complete' : running ? 'Run in progress' : 'Awaiting run';
+      byId('progress-fill').style.width = (total ? Math.round(completed/total*100) : 0) + '%';
+      const tactics = [...new Set(chain.map(s=>s.tactic))];
+      tactics.forEach(t => {
+        const ids = chain.filter(s=>s.tactic===t).map(s=>s.id);
+        const done = ids.filter(id=>['detected','missed'].includes(states[id]));
+        const det = done.filter(effectiveDetected).length, miss = done.length-det;
+        const el = byId('tactic-'+t); if (el) el.className = 'tactic ' + (det&&miss?'mix':det?'ok':miss?'bad':'');
+      });
+      updateRiskMetrics();
+    }
 
-function updateScore() {
-  const det = CHAIN.filter(s => states[s.id] === 'detected').length;
-  const tot = CHAIN.length;
-  const pct = Math.round(det/tot*100);
-  const el  = document.getElementById('score-num');
-  el.innerHTML  = `${det}<span style="font-size:36px;color:var(--dim)">/${tot}</span>`;
-  el.className  = `score-num ${det===tot?'full':det>0?'part':'zero'}`;
-  document.getElementById('fill').style.width = pct+'%';
-  document.getElementById('score-sub').textContent = pct+'% DETECTION RATE';
+    function log(message, cls='') {
+      const line = document.createElement('div'); line.className = 'log-line ' + cls;
+      line.textContent = '[' + new Date().toLocaleTimeString([], {hour12:false}) + '] ' + message;
+      byId('log-feed').appendChild(line); byId('log-feed').scrollTop = byId('log-feed').scrollHeight;
+    }
 
-  // Tactic cells
-  const tacStates = {};
-  CHAIN.forEach(s => {
-    if (!tacStates[s.tactic]) tacStates[s.tactic] = [];
-    tacStates[s.tactic].push(states[s.id]);
-  });
-  Object.entries(tacStates).forEach(([t, ss]) => {
-    const c = document.getElementById(`tc-${t}`);
-    if (!c) return;
-    const det = ss.includes('detected'), miss = ss.includes('missed');
-    c.className = `tc ${det&&!miss?'ok':miss&&!det?'bad':det&&miss?'mix':''}`;
-  });
-}
+    function setBadge(status) {
+      byId('run-badge').textContent = titleCase(status);
+      byId('run-badge').className = 'run-badge ' + status;
+    }
 
-// ── Sigma deploy data (terminal steps per rule) ────────────────────────────────
-const SIGMA_DEPLOY_DATA = {
-  'T1547.001': {
-    steps:[
-      '[*] Loading   registry_run_key_persistence.yml',
-      '[*] Parsing   detection — RegistryEvent EID 12/13',
-      '[+] Compiling condition logic → Wazuh XML format',
-      '[+] Writing   rule 100100 → /var/ossec/etc/rules/local_rules.xml',
-      '[+] Signaling ossec-analysisd (pid 1842) to reload ...',
-      '[✓] Engine reloaded — 0 errors, 1 rule added',
-      '[✓] Rule 100100 ACTIVE: monitoring HKCU\\CurrentVersion\\Run',
-    ],
-    alert:'Registry key written: HKCU\\CurrentVersion\\Run\\Backdoor (Rule 100100)'
-  },
-  'T1490': {
-    steps:[
-      '[*] Loading   shadow_copy_deletion_vssadmin.yml',
-      '[*] Parsing   detection — ProcessCreate EID 1, vssadmin.exe',
-      '[+] Compiling CommandLine conditions → Wazuh XML format',
-      '[+] Writing   rule 100101 → /var/ossec/etc/rules/local_rules.xml',
-      '[+] Signaling ossec-analysisd (pid 1842) to reload ...',
-      '[✓] Engine reloaded — 0 errors, 1 rule added',
-      '[✓] Rule 100101 ACTIVE: monitoring vssadmin delete shadows',
-    ],
-    alert:'vssadmin.exe delete shadows /all /quiet detected (Rule 100101)'
-  },
-  'T1486': {
-    steps:[
-      '[*] Loading   ransomware_file_encryption.yml',
-      '[*] Parsing   detection — FileCreate EID 11, extension list',
-      '[+] Compiling TargetFilename conditions → Wazuh XML format',
-      '[+] Writing   rule 100102 → /var/ossec/etc/rules/local_rules.xml',
-      '[+] Signaling ossec-analysisd (pid 1842) to reload ...',
-      '[✓] Engine reloaded — 0 errors, 1 rule added',
-      '[✓] Rule 100102 ACTIVE: monitoring .encrypted / .locked extensions',
-    ],
-    alert:'FileCreate: TEMP\\document.txt.encrypted detected (Rule 100102)'
-  }
-};
+    function setButtons(disabled) {
+      byId('run-btn').disabled = disabled; byId('reset-btn').disabled = disabled; byId('demo-btn').disabled = disabled;
+      byId('stop-btn').disabled = !disabled;
+    }
 
-let deployedRules = new Set();
-let chainDone = false;
+    async function syncRunState() {
+      try {
+        const [statusData,resultData]=await Promise.all([fetch(BASE+'/status').then(r=>r.json()),fetch(BASE+'/results').then(r=>r.json())]);
+        const backendResults=resultData.results||[];
+        if(backendResults.length){results=backendResults;results.forEach(r=>{states[r.id]=r.detected?'detected':'missed';});}
+        const allStepsFinished=Boolean(chain.length&&results.length>=chain.length);
+        running=(statusData.status==='running'||statusData.status==='stopping')&&!allStepsFinished;
+        chainComplete=statusData.status==='complete'||allStepsFinished;
+        setButtons(running);
+        setBadge(chainComplete?'complete':running?'running':(statusData.status||'idle'));
+        if(chainComplete)byId('step-now').textContent='Complete';
+        buildPipeline();renderGapCards();renderReport();renderAttackMatrix();renderSigmaLibrary();updateScore();
+      } catch(e) { log('Backend state sync failed: '+e.message,'bad'); }
+    }
 
-// ── Sigma ─────────────────────────────────────────────────────────────────────
-function renderSigma(sigma) {
-  const w = document.getElementById('sigma-wrap');
-  if (!sigma?.length) { w.innerHTML='<div class="empty">✓ All techniques detected — no gaps</div>'; return; }
-  w.innerHTML = sigma.map(r => {
-    const tid = r.technique_id || '';
-    const deployed = deployedRules.has(tid);
-    const hasDeployData = !!SIGMA_DEPLOY_DATA[tid];
-    return `
-    <div class="sigma-card${deployed?' deployed':''}" id="sc-${tid}">
-      <div class="sigma-tid">${tid} — ${r.technique_name||''}</div>
-      <div class="sigma-desc">${r.description||r.title||'Suggested detection rule for coverage gap'}</div>
-      <span class="sigma-tag">${r.tactic||''}</span>
-      ${hasDeployData ? `<button class="sigma-btn${deployed?' done':''}" id="sbtn-${tid}" ${deployed?'disabled':''} onclick="implementRule('${tid}')">${deployed?'✓ Rule Active':'⬆ Implement Rule'}</button>` : ''}
-    </div>`;
-  }).join('');
-}
+    function renderGapCards() {
+      const showRescan = chainComplete && sigmaGaps.length > 0;
+      byId('rescan-missed-btn').hidden = !showRescan;
+      if (!sigmaGaps.length) {
+        byId('sigma-gaps').innerHTML = '<div class="empty">' + (chainComplete ? 'No backend coverage gaps reported.' : 'Run the chain to surface backend coverage gaps.') + '</div>';
+        return;
+      }
+      byId('sigma-gaps').innerHTML = sigmaGaps.map(g => {
+        const id = g.technique_id || g.id || ''; const deployed = deployedRules.has(id);
+        return '<div class="sigma-card ' + (deployed?'deployed':'') + '"><div class="sigma-title">' + esc(id) + ' - ' + esc(g.technique_name || g.title || g.sigma_rule?.title || '') + '</div><div class="sigma-desc">' + esc(g.description || g.sigma_rule?.description || g.note || '') + '</div><button class="sigma-btn ' + (deployed?'done':'') + '" ' + (deployed?'disabled':'') + ' onclick="deployRule(\'' + esc(id) + '\')">' + (deployed?'Rule Active':'Implement Rule') + '</button></div>';
+      }).join('');
+    }
 
-// ── Implement Rule overlay ────────────────────────────────────────────────────
-function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+    async function rescanMissed() {
+      if (running) { log('Chain already running', 'bad'); return; }
+      try {
+        const r = await fetch(BASE + '/rescan', { method: 'POST' });
+        const d = await r.json();
+        if (d.error) { log(d.error, 'bad'); return; }
+        log('Rescanning ' + d.techniques.length + ' missed technique(s): ' + d.techniques.join(', '), 'accent');
+        byId('rescan-missed-btn').hidden = true;
+      } catch(e) { log('Rescan failed: ' + e.message, 'bad'); }
+    }
 
-async function implementRule(tid) {
-  if (deployedRules.has(tid)) return;
-  const d = SIGMA_DEPLOY_DATA[tid];
-  if (!d) return;
+    function yamlFromObject(obj, indent=0) {
+      const pad = ' '.repeat(indent);
+      if (Array.isArray(obj)) return obj.map(v => pad + '- ' + (typeof v === 'object' ? '\n' + yamlFromObject(v, indent+2) : String(v))).join('\n');
+      if (obj && typeof obj === 'object') return Object.entries(obj).map(([k,v]) => pad+k+':' + (typeof v === 'object' ? '\n'+yamlFromObject(v,indent+2) : ' '+String(v))).join('\n');
+      return pad + String(obj ?? '');
+    }
 
-  const btn = document.getElementById(`sbtn-${tid}`);
-  if (btn) { btn.disabled=true; btn.textContent='Deploying...'; }
+    async function deployRule(id) {
+      const gap = sigmaGaps.find(g => (g.technique_id || g.id) === id);
+      if (!gap) return;
+      byId('term-label').textContent = 'wazuh@192.168.10.133: deploy ' + id;
+      byId('term-body').innerHTML = ''; byId('term-progress').style.width = '0%'; byId('term-status').textContent = 'Deploying ' + id; byId('term-close').hidden = true;
+      byId('deploy-overlay').classList.add('open');
+      const connecting=document.createElement('div');connecting.className='term-line';connecting.textContent='[*] Connecting to Wazuh manager';byId('term-body').appendChild(connecting);
+      let deployData = null;
+      try {
+        const response=await fetch(BASE+'/sigma/deploy/'+encodeURIComponent(id),{method:'POST'});
+        deployData=await response.json();
+        if(!response.ok||deployData.error)throw new Error(deployData.error||'Rule deployment failed');
+      } catch(error) {
+        const failure=document.createElement('div');failure.className='term-line';failure.style.color='var(--bad)';failure.textContent='[ERROR] '+error.message;byId('term-body').appendChild(failure);
+        byId('term-status').textContent='Deployment failed';byId('term-close').hidden=false;log(id+' deployment failed: '+error.message,'bad');return;
+      }
+      byId('term-progress').style.width = '75%';
+      const applied=document.createElement('div');applied.className='term-line';applied.textContent='[+] Wazuh manager accepted and reloaded the ruleset';byId('term-body').appendChild(applied);
+      // Show actual backend verification evidence from Wazuh API
+      if (deployData && deployData.verification_text) {
+        await sleep(300);
+        const sep=document.createElement('div');sep.className='term-line';sep.style.color='var(--muted)';sep.textContent='── Wazuh Rule Verification ──';byId('term-body').appendChild(sep);
+        for (const vline of deployData.verification_text.split('\n')) {
+          await sleep(150);
+          const vdiv=document.createElement('div');vdiv.className='term-line '+(vline.startsWith('[✓]')?'ok':'');vdiv.textContent=vline;byId('term-body').appendChild(vdiv);
+        }
+      }
+      byId('term-progress').style.width = '100%';
+      deployedRules.add(id); byId('term-status').textContent = id + ' rule active'; byId('term-close').hidden = false;
+      renderGapCards(); renderAttackMatrix(); renderSigmaLibrary(); updateScore();
+      log(id + ' rules verified active by Wazuh', 'accent');
+    }
 
-  document.getElementById('deploy-label').textContent = `wazuh@siem: sigma/${tid.toLowerCase().replace('.','_')}.yml`;
-  const body = document.getElementById('deploy-body');
-  body.innerHTML = '';
-  document.getElementById('deploy-prog').style.width = '0%';
-  document.getElementById('deploy-status').textContent = 'Deploying rule...';
-  document.getElementById('deploy-status').className = 'deploy-status';
-  document.getElementById('deploy-close-btn').style.display = 'none';
-  document.getElementById('deploy-overlay').classList.add('active');
+    function renderAttackMatrix() {
+      if (!chain.length) { byId('attack-matrix').innerHTML='<div class="empty">Backend chain unavailable.</div>'; return; }
+      const tactics = [...new Set(chain.map(s=>s.tactic))];
+      byId('attack-sub').textContent = tactics.length + ' tactics - ' + chain.length + ' backend techniques';
+      const catalogByTactic = new Map();
+      SIGMA_CATALOG.forEach(r => { if (!catalogByTactic.has(r.tactic)) catalogByTactic.set(r.tactic,[]); catalogByTactic.get(r.tactic).push(r); });
+      byId('attack-matrix').innerHTML = tactics.map(tactic => {
+        const inScope = chain.filter(s=>s.tactic===tactic).map(s=>({id:s.id,name:s.name,inScope:true}));
+        const seen = new Set(inScope.map(x=>x.id));
+        const extras = (catalogByTactic.get(tactic)||[]).filter(r=>!seen.has(r.id)).map(r=>({id:r.id,name:r.title,inScope:false}));
+        return '<div class="tactic-col"><div class="tactic-head">'+esc(titleCase(tactic))+'</div>' + inScope.concat(extras).map(t => {
+          let cls='neutral', badge='Not in scope';
+          if (t.inScope) { const dep=deployedRules.has(t.id); const state=states[t.id]; cls=state==='detected'?'det':state==='missed'?'miss':dep?'dep':'neutral'; badge=state==='detected'?'Detected':state==='missed'?'Missed':dep?'Rule deployed':'Pending'; }
+          return '<div class="attack-cell '+cls+'"><div class="attack-id">'+esc(t.id)+'</div><div class="attack-name">'+esc(t.name)+'</div><span class="attack-badge">'+esc(badge)+'</span></div>';
+        }).join('') + '</div>';
+      }).join('');
+    }
 
-  const prog = document.getElementById('deploy-prog');
-  for (let i=0; i<d.steps.length; i++) {
-    await sleep(i===0 ? 280 : 620);
-    const line = document.createElement('span');
-    line.className = `dline${d.steps[i].startsWith('[✓]')?' ok':''}`;
-    line.textContent = d.steps[i];
-    body.appendChild(line);
-    body.appendChild(document.createElement('br'));
-    body.scrollTop = body.scrollHeight;
-    prog.style.width = Math.round((i+1)/d.steps.length*100) + '%';
-  }
+    function activeRuleIds() { return new Set(results.filter(r=>r.detected).map(r=>r.id).concat([...deployedRules])); }
+    function currentSigmaRules() {
+      const gaps = new Map(sigmaGaps.map(g=>[g.technique_id||g.id,g]));
+      const active = activeRuleIds();
+      return SIGMA_CATALOG.filter(r => active.has(r.id) || gaps.has(r.id)).map(r => {
+        const gap = gaps.get(r.id); const deployed = deployedRules.has(r.id); return {...r, type: gap && !deployed ? 'gap' : 'active', yaml: gap?.sigma_rule ? yamlFromObject(gap.sigma_rule) : r.yaml};
+      });
+    }
+    function highlightYaml(yaml) {
+      return esc(yaml).replace(/^(\s*)([\w|.-]+):/gm,'$1<span class="yk">$2:</span>').replace(/(&#39;.*?&#39;|&quot;.*?&quot;)/g,'<span class="ys">$1</span>').replace(/\b(\d+)\b/g,'<span class="yn">$1</span>').replace(/(#.*)$/gm,'<span class="yc">$1</span>');
+    }
+    function renderSigmaLibrary() {
+      const q=byId('sigma-search').value.toLowerCase(); let rules=currentSigmaRules();
+      if (sigmaFilter!=='all') rules=rules.filter(r=>r.type===sigmaFilter);
+      if (q) rules=rules.filter(r=>(r.id+' '+r.title+' '+r.tactic).toLowerCase().includes(q));
+      byId('rule-count').textContent=rules.length+' backend-relevant rules';
+      byId('sigma-grid').innerHTML=rules.length?rules.map(r=>'<article class="rule-card"><div class="rule-head"><span class="rule-id">'+esc(r.id)+'</span><span class="rule-name">'+esc(r.title)+'</span><span class="rule-type '+(r.type==='gap'?'gap':'')+'">'+r.type+'</span></div><pre>'+highlightYaml(r.yaml)+'</pre><div class="rule-foot"><span>'+esc(titleCase(r.tactic))+'</span><span>'+esc(r.level)+'</span><button class="btn copy" onclick="copyRule(\''+esc(r.id)+'\')">Copy</button></div></article>').join(''):'<div class="empty">No backend-relevant Sigma rules match this filter.</div>';
+    }
+    function copyRule(id){const r=currentSigmaRules().find(x=>x.id===id);if(r)navigator.clipboard.writeText(r.yaml).catch(()=>{});}
+    function downloadSigma(){const rules=currentSigmaRules();if(!rules.length)return;downloadBlob(rules.map(r=>'# '+r.id+' - '+r.title+'\n'+r.yaml).join('\n\n---\n\n'),'janus-sigma-rules.yml','text/yaml');}
+    function downloadBlob(text,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
 
-  await sleep(350);
-  const st = document.getElementById('deploy-status');
-  st.textContent = `✓ ${tid} rule active — detection gap closed`;
-  st.className = 'deploy-status done';
-  document.getElementById('deploy-close-btn').style.display = 'inline-block';
+    function riskLevel() {
+      const total=chain.length, detected=chain.filter(s=>effectiveDetected(s.id)).length, gaps=Math.max(total-detected,0), score=total?Math.round(gaps/total*100):0;
+      return {total,detected,gaps,score,level:!total?'Pending':score>=60?'Critical':score>=35?'High':score>0?'Medium':'Low'};
+    }
+    function updateRiskMetrics() {
+      const r=riskLevel(); byId('ai-score').textContent=r.score;byId('ai-risk').textContent=r.level;byId('ai-detected').textContent=r.detected+'/'+r.total;byId('ai-gaps').textContent=r.gaps;
+      byId('rp-detected').textContent=r.detected;byId('rp-total').textContent=r.total;byId('rp-rate').textContent=(r.total?Math.round(r.detected/r.total*100):0)+'%';byId('rp-risk').textContent=r.level;
+    }
+    function extractSection(text, heading) {
+      const lines=String(text||'').split(/\r?\n/); const index=lines.findIndex(l=>l.toLowerCase().includes(heading.toLowerCase()));
+      if(index<0)return''; const out=[]; for(let i=index+1;i<lines.length;i++){if(/^#{0,3}\s*\d+\.|^[A-Z][A-Z &]+$/.test(lines[i].trim())&&out.length)break;out.push(lines[i]);} return out.join('\n').trim();
+    }
+    function renderReport() {
+      const r=riskLevel(), gaps=results.filter(x=>!x.detected && !deployedRules.has(x.id));
+      byId('risk-banner').textContent = chainComplete ? r.level+' risk based on '+r.detected+' detections across '+r.total+' backend techniques.' : 'Run the backend kill chain to populate the assessment.';
+      byId('executive-summary').textContent = extractSection(reportText,'executive summary') || (results.length ? 'Backend run completed with '+r.detected+' of '+r.total+' techniques detected.' : 'No backend results available.');
+      byId('report-timeline').innerHTML = results.length ? results.map(x=>{const detected=x.detected;return '<article class="timeline-card"><div class="timeline-head"><span class="timeline-id">'+esc(x.id)+'</span><span class="timeline-name">'+esc(x.name)+'</span><span class="status-pill '+(detected?'ok':'bad')+'">'+(detected?'Detected':'Not detected')+'</span></div><div class="timeline-meta">'+esc(titleCase(x.tactic))+'</div><div class="evidence '+(detected?'':'bad')+'">'+esc(x.alerts?.[0]?.rule_desc || (deployedRules.has(x.id)?'Rule deployed; awaiting a successful rescan alert':'No Wazuh alert returned by the backend'))+'</div></article>'}).join('') : '<div class="empty">No backend timeline available.</div>';
+      byId('risk-assessment').textContent = extractSection(reportText,'risk assessment') || (results.length ? r.level+' risk. '+r.gaps+' techniques currently lack detection.' : 'No backend results available.');
+      byId('report-gaps').innerHTML = gaps.length ? gaps.map(x=>'<div class="gap-card"><div class="timeline-id">'+esc(x.id)+' - '+esc(x.name)+'</div><div class="timeline-meta">'+esc(titleCase(x.tactic))+'</div></div>').join('') : '<div class="empty">'+(results.length?'No backend detection gaps.':'No gap data available.')+'</div>';
+      byId('remediation').textContent = extractSection(reportText,'remediation recommendations') || 'Generate the backend report to load remediation guidance.';
+      byId('report-text').textContent = reportText || 'No generated report loaded.';
+      byId('report-download').disabled=!reportText;
+    }
+    async function streamReport(text,target) {
+      target.textContent=''; const chunks=String(text).split(/(\s+)/);
+      for(let i=0;i<chunks.length;i++){target.textContent+=chunks[i];if(i%8===0)await sleep(10);}
+    }
+    async function generateReport(aiMode=false) {
+      const btn=aiMode?byId('ai-btn'):byId('report-btn'); btn.disabled=true;
+      if(aiMode){byId('thinking').classList.add('show');byId('ai-status').textContent='Requesting Gemini analysis from Flask...';byId('ai-output').textContent='';}
+      try{
+        const response=await fetch(BASE+'/report',{method:'POST'});const data=await response.json();if(!response.ok||data.error)throw new Error(data.error||'Report request failed');
+        reportText=data.report||'';renderReport();
+        if(aiMode){byId('thinking').classList.remove('show');byId('ai-status').textContent='Streaming Gemini response';await streamReport(reportText,byId('ai-output'));byId('ai-status').textContent='Analysis complete';}
+        log('Backend report generated','ok');
+      }catch(error){if(aiMode){byId('thinking').classList.remove('show');byId('ai-output').textContent='Error: '+error.message;byId('ai-status').textContent='Analysis failed';}log('Report failed: '+error.message,'bad');}
+      finally{btn.disabled=false;}
+    }
 
-  log(`[DEPLOY] ${tid} Sigma rule deployed — gap closed`, 'deploy');
-  deployedRules.add(tid);
+    async function loadInitial() {
+      try { const d=await fetch(BASE+'/chain').then(r=>r.json());chain=d.chain||[];buildPipeline();renderAttackMatrix(); } catch(e){log('Chain endpoint unavailable: '+e.message,'bad');}
+      try {
+        await syncRunState();
+        try{const s=await fetch(BASE+'/sigma').then(r=>r.json());sigmaGaps=Array.isArray(s)?s:(s.sigma||[]);}catch{}
+        renderGapCards();renderReport();renderSigmaLibrary();
+      } catch(e){log('Backend status unavailable: '+e.message,'bad');}
+      try { const d=await fetch(BASE+'/report').then(r=>r.json());if(d.report){reportText=d.report;renderReport();} } catch {}
+      try { const d=await fetch(BASE+'/sigma/deployed').then(r=>r.json());deployedRules=new Set(d.techniques||[]);renderGapCards();renderAttackMatrix();renderSigmaLibrary();updateScore(); } catch {}
+      checkHealth();
+    }
+    async function checkHealth(){try{const d=await fetch(BASE+'/health').then(r=>r.json());byId('wazuh-dot').className='s-dot '+(d.wazuh?'ok':'bad');byId('victim-dot').className='s-dot '+(d.victim?'ok':'bad');}catch{byId('wazuh-dot').className='s-dot bad';byId('victim-dot').className='s-dot bad';}}
+    async function post(path){const r=await fetch(BASE+path,{method:'POST'});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||path+' failed');return d;}
+    async function runChain(){try{await post('/run');log('Kill chain start requested','accent');}catch(e){log(e.message,'bad');}}
+    async function stopChain(){try{await post('/stop');setBadge('stopping');byId('stop-btn').disabled=true;byId('step-now').textContent='Stopping after current command';log('Stop requested','warn');}catch(e){log(e.message,'bad');}}
+    async function resetChain(){try{await post('/reset');deployedRules=new Set();results=[];sigmaGaps=[];reportText='';chainComplete=false;running=false;states={};chain.forEach(s=>states[s.id]='pending');buildPipeline();renderGapCards();renderReport();renderSigmaLibrary();renderAttackMatrix();updateScore();setBadge('idle');byId('step-now').textContent='None';byId('rescan-missed-btn').hidden=true;log('Reset complete — weak rules restored, gaps ready for demo','warn');}catch(e){log(e.message,'bad');}}
+    async function replay(){try{await post('/demo');log('Backend replay requested','accent');}catch(e){log(e.message,'bad');}}
 
-  if (chainDone) {
-    document.getElementById('btn-rescan').style.display = 'inline-block';
-  }
-}
+    function initSocket(){
+      const socket=io(BASE,{transports:['websocket','polling']});
+      socket.on('connect',()=>{byId('socket-dot').className='s-dot ok';log('Connected to Flask orchestrator','ok');syncRunState();});
+      socket.on('disconnect',()=>{byId('socket-dot').className='s-dot bad';log('Disconnected from orchestrator','bad');});
+      socket.on('run_started',data=>{
+        if(data?.rescan){
+          const sub=new Set(data.subset||[]);
+          sub.forEach(id=>{states[id]='pending';updateCard(id);});
+          running=true;chainComplete=false;setButtons(true);setBadge('running');
+          log('Rescanning '+sub.size+' missed technique(s): '+[...sub].join(', '),'accent');
+          return;
+        }
+        if(data?.chain?.length){chain=data.chain;states={};chain.forEach(s=>states[s.id]='pending');buildPipeline();}
+        results=[];sigmaGaps=[];running=true;chainComplete=false;setButtons(true);setBadge('running');renderGapCards();
+        log('Backend run started','accent');
+      });
+      socket.on('step_started',data=>{setState(data.technique,'running');const i=chain.findIndex(s=>s.id===data.technique);if(i>0)byId('conn-'+chain[i-1].id)?.classList.add('flow');byId('step-now').textContent=data.technique+' - '+data.name;log(data.technique+' '+data.name,'warn');});
+      socket.on('step_waiting',data=>{setState(data.technique,'waiting');log(data.technique+' waiting '+data.wait+'s for Wazuh');});
+      socket.on('step_result',data=>{results=results.filter(r=>r.id!==data.id).concat(data);const detected=data.detected;setState(data.id,detected?'detected':'missed',data.alerts||[]);const i=chain.findIndex(s=>s.id===data.id);if(i>0)byId('conn-'+chain[i-1].id)?.classList.remove('flow');if(chain.length&&results.length>=chain.length){running=false;chainComplete=true;setButtons(false);setBadge('complete');byId('step-now').textContent='Complete';}log(data.id+' '+(detected?'detected':'not detected'),detected?'ok':'bad');});
+      socket.on('run_complete',data=>{running=false;chainComplete=true;results=data.results||results;sigmaGaps=data.sigma||[];results.forEach(r=>states[r.id]=r.detected?'detected':'missed');setButtons(false);setBadge('complete');byId('step-now').textContent='Complete';renderGapCards();renderReport();renderAttackMatrix();renderSigmaLibrary();updateScore();log('Run complete: '+chain.filter(s=>effectiveDetected(s.id)).length+'/'+data.total,'ok');});
+      socket.on('run_stopping',()=>{setBadge('stopping');byId('stop-btn').disabled=true;byId('step-now').textContent='Stopping after current command';});
+      socket.on('run_stopped',data=>{running=false;chainComplete=false;results=data.results||results;setButtons(false);setBadge('stopped');byId('step-now').textContent='Stopped at '+data.completed+'/'+data.total;renderReport();renderAttackMatrix();renderSigmaLibrary();updateScore();log('Run stopped after '+data.completed+'/'+data.total+' techniques','warn');});
+      socket.on('report_ready',data=>{if(data?.report){reportText=data.report;renderReport();}});
+    }
 
-function closeOverlay() {
-  document.getElementById('deploy-overlay').classList.remove('active');
-  renderSigma(_lastSigma);
-}
-
-let _lastSigma = [];
-
-// ── Log ───────────────────────────────────────────────────────────────────────
-function log(msg, cls='') {
-  const f = document.getElementById('log-feed');
-  const ts = new Date().toLocaleTimeString('en-US',{hour12:false});
-  f.insertAdjacentHTML('beforeend',`<div class="ll ${cls}">[${ts}] ${msg}</div>`);
-  f.scrollTop = f.scrollHeight;
-  while (f.children.length > 200) f.removeChild(f.firstChild);
-}
-
-// ── Controls ──────────────────────────────────────────────────────────────────
-function setBtns(dis) {
-  document.getElementById('btn-run').disabled   = dis;
-  document.getElementById('btn-reset').disabled = dis;
-}
-
-function setBadge(state) {
-  const b = document.getElementById('run-badge');
-  b.textContent = state.toUpperCase();
-  b.className = `badge ${state}`;
-}
-
-async function runChain() {
-  if (running) return;
-  const r = await fetch(`${BASE}/run`,{method:'POST'}).catch(e=>{log('Start failed: '+e,'bad');return null;});
-  if (!r?.ok) { log('Could not start chain','bad'); return; }
-  log('Kill chain initiated','accent');
-}
-
-async function resetChain() {
-  if (running) return;
-  await fetch(`${BASE}/reset`,{method:'POST'}).catch(()=>{});
-  deployedRules.clear(); chainDone=false; _lastSigma=[];
-  buildPipeline(); buildTactics(); updateScore();
-  document.getElementById('sigma-wrap').innerHTML='<div class="empty">Run the chain to surface coverage gaps</div>';
-  document.getElementById('step-txt').textContent='—';
-  document.getElementById('btn-rescan').style.display='none';
-  setBadge('idle'); log('Reset','');
-}
-
-async function rescanWithRules() {
-  if (running || deployedRules.size===0) return;
-  document.getElementById('btn-rescan').style.display='none';
-  log(`⟳ Rescan started — ${deployedRules.size} Sigma rule(s) active`, 'deploy');
-  runDemo();
-}
-
-// ── WebSocket ─────────────────────────────────────────────────────────────────
-function initWS() {
-  const sock = io(BASE, {transports:['websocket','polling']});
-
-  sock.on('connect', ()=>{ setDot('ds','ok'); log('Connected to orchestrator','ok'); });
-  sock.on('disconnect',()=>{ setDot('ds','bad blink'); log('Disconnected','bad'); });
-
-  sock.on('run_started', ()=>{
-    running=true; setBtns(true); setBadge('running');
-    log('▶ Kill chain started — 7 techniques','accent');
-  });
-
-  sock.on('step_started', ({technique,name})=>{
-    setState(technique,'running');
-    const i = CHAIN.findIndex(s=>s.id===technique);
-    if (i>0) { const vl=document.getElementById(`vl-${CHAIN[i-1].id}`); if(vl) vl.classList.add('flow'); }
-    document.getElementById('step-txt').textContent=`${technique} — ${name}`;
-    log(`▶ ${technique}  ${name}`,'warn');
-  });
-
-  sock.on('step_waiting', ({technique,wait})=>{
-    setState(technique,'waiting');
-    log(`  Waiting ${wait}s for Wazuh...`,'');
-  });
-
-  sock.on('step_result', ({id,detected,alerts})=>{
-    // override: if we deployed a Sigma rule for this technique, show as detected
-    const effectiveDetected = detected || deployedRules.has(id);
-    const effectiveAlerts = (deployedRules.has(id) && !detected)
-      ? [{ rule_desc: SIGMA_DEPLOY_DATA[id]?.alert || 'Sigma rule triggered' }]
-      : (alerts||[]);
-    setState(id, effectiveDetected?'detected':'missed', effectiveAlerts);
-    const i=CHAIN.findIndex(s=>s.id===id);
-    if(i>0){const vl=document.getElementById(`vl-${CHAIN[i-1].id}`);if(vl)vl.classList.remove('flow');}
-    updateScore();
-    log(effectiveDetected ? `  ✓ ${id} DETECTED — ${effectiveAlerts?.[0]?.rule_desc||''}` : `  ✗ ${id} MISSED`, effectiveDetected?'ok':'bad');
-  });
-
-  sock.on('run_complete', ({score,total,sigma})=>{
-    running=false; setBtns(false); setBadge('complete');
-    chainDone=true;
-    // recalculate score accounting for deployed rules
-    const effectiveScore = CHAIN.filter(s=>states[s.id]==='detected').length;
-    _lastSigma = sigma||[];
-    renderSigma(sigma);
-    document.getElementById('step-txt').textContent='Complete';
-    log(`━━ Done: ${effectiveScore}/${total} detected ━━`, effectiveScore===total?'ok':'warn');
-    if (deployedRules.size > 0) document.getElementById('btn-rescan').style.display='inline-block';
-  });
-}
-
-function setDot(id, cls) { const d=document.getElementById(id); d.className='dot '+cls; }
-
-// ── Health ────────────────────────────────────────────────────────────────────
-async function checkHealth() {
-  try {
-    const d = await fetch(`${BASE}/health`).then(r=>r.json());
-    setDot('dw', d.wazuh?'ok':'bad');
-    setDot('dv', 'ok');
-  } catch { setDot('dw','bad'); }
-}
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-buildPipeline(); buildTactics(); updateScore();
-checkHealth(); setInterval(checkHealth,10000);
-initWS();
-
-// ── Demo mode ─────────────────────────────────────────────────────────────────
-async function runDemo() {
-  if (running) return;
-  const r = await fetch(`${BASE}/demo`,{method:'POST'}).catch(e=>{log('Demo failed: '+e,'bad');return null;});
-  if (!r?.ok) { log('Run the real chain first to enable demo mode','bad'); return; }
-  log('⚡ Demo mode started','accent');
-}
-
-// ── Report ────────────────────────────────────────────────────────────────────
-let reportText = '';
-
-async function generateReport() {
-  document.getElementById('report-modal').classList.add('open');
-  document.getElementById('report-body').textContent = '';
-  document.getElementById('report-generating').style.display = 'block';
-  log('Generating AI report...', 'accent');
-  try {
-    const r = await fetch(`${BASE}/report`, {method:'POST'});
-    const d = await r.json();
-    if (d.error) throw new Error(d.error);
-    reportText = d.report;
-    document.getElementById('report-generating').style.display = 'none';
-    document.getElementById('report-body').textContent = reportText;
-    log('✦ AI report ready', 'ok');
-  } catch(e) {
-    document.getElementById('report-generating').style.display = 'none';
-    document.getElementById('report-body').textContent = 'Error: ' + e.message;
-    log('Report failed: ' + e.message, 'bad');
-  }
-}
-
-function closeReport() { document.getElementById('report-modal').classList.remove('open'); }
-
-function downloadReport() {
-  if (!reportText) return;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([reportText], {type:'text/markdown'}));
-  a.download = `acc-hackathon-report-${new Date().toISOString().slice(0,10)}.md`;
-  a.click();
-}
-
-// Listen for report generated by another client
-// (socket.on already handles run_complete; add report_ready here)
-
-// ── Restore state if chain already ran
-fetch(`${BASE}/status`).then(r=>r.json()).then(async d=>{
-  if (d.status==='complete') {
-    chainDone=true;
-    const {results}=await fetch(`${BASE}/results`).then(r=>r.json());
-    results.forEach(r=>setState(r.id,r.detected?'detected':'missed',r.alerts||[]));
-    updateScore(); setBadge('complete');
-    const sg=await fetch(`${BASE}/sigma`).then(r=>r.json()).catch(()=>({}));
-    if(sg.sigma) { _lastSigma=sg.sigma; renderSigma(sg.sigma); }
-  }
-}).catch(()=>{});
-</script>
+    document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>showPage(t.dataset.page)));
+    byId('run-btn').onclick=runChain;byId('stop-btn').onclick=stopChain;byId('reset-btn').onclick=resetChain;byId('demo-btn').onclick=replay;byId('report-shortcut').onclick=()=>{showPage('report');generateReport(false)};byId('report-btn').onclick=()=>generateReport(false);byId('ai-btn').onclick=()=>generateReport(true);
+    byId('report-download').onclick=()=>downloadBlob(reportText,'janus-security-report.md','text/markdown');byId('sigma-download').onclick=downloadSigma;byId('term-close').onclick=()=>byId('deploy-overlay').classList.remove('open');
+    byId('sigma-search').addEventListener('input',renderSigmaLibrary);document.querySelectorAll('.filter').forEach(b=>b.onclick=()=>{sigmaFilter=b.dataset.filter;document.querySelectorAll('.filter').forEach(x=>x.classList.toggle('active',x===b));renderSigmaLibrary();});
+    window.deployRule=deployRule;window.copyRule=copyRule;
+    loadInitial();initSocket();setInterval(checkHealth,10000);setInterval(syncRunState,5000);
+  </script>
 </body>
 </html>
