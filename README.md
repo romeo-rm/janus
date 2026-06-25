@@ -63,7 +63,7 @@ At the end of a run, one click triggers Google Gemini 2.5 Flash to produce a ful
 <td width="50%">
 
 ### 🎯 Live Kill Chain Execution
-Execute a real 7-technique ransomware kill chain against a live Windows 10 target via SSH and Atomic Red Team. No synthetic simulation — real PowerShell, real LSASS dumps, real shadow copy deletion.
+Execute a real 20-technique ransomware kill chain against a live Windows 10 target via SSH. No synthetic simulation — real PowerShell, real LSASS dumps, real shadow copy deletion. Covers initial access through encryption across 8 MITRE ATT&CK tactics.
 
 </td>
 <td width="50%">
@@ -129,13 +129,26 @@ This is not a random selection of techniques. This is the **documented operation
 
 | # | Technique ID | Name | Tactic | Real-World Actor |
 |---|-------------|------|--------|-----------------|
-| 1 | **T1059.001** | PowerShell Execution | Execution | LockBit, Conti, REvil |
-| 2 | **T1547.001** | Registry Run Key Persistence | Persistence | LockBit 3.0 |
-| 3 | **T1003.001** | LSASS Memory Dump (Mimikatz) | Credential Access | Conti, BlackCat |
-| 4 | **T1550.002** | Pass-the-Hash Lateral Movement | Lateral Movement | REvil, Conti |
-| 5 | **T1071.001** | C2 Beacon over HTTP | Command & Control | Lazarus, REvil |
-| 6 | **T1490** | Volume Shadow Copy Deletion | Impact | All major ransomware groups |
-| 7 | **T1486** | File Encryption (XOR) | Impact | LockBit, BlackCat, REvil |
+| 1 | **T1566.001** | Spearphishing Attachment | Initial Access | LockBit, Conti |
+| 2 | **T1059.001** | PowerShell Execution | Execution | LockBit, Conti, REvil |
+| 3 | **T1547.001** | Registry Run Key Persistence | Persistence | LockBit 3.0 |
+| 4 | **T1055** | Process Injection | Defense Evasion | BlackCat, Conti |
+| 5 | **T1134** | Access Token Manipulation | Privilege Escalation | REvil, BlackCat |
+| 6 | **T1562.001** | Disable Security Tools | Defense Evasion | LockBit, REvil |
+| 7 | **T1027** | Obfuscated Files or Information | Defense Evasion | All major ransomware groups |
+| 8 | **T1112** | Modify Registry | Defense Evasion | LockBit 3.0 |
+| 9 | **T1003.001** | LSASS Memory Dump (Mimikatz) | Credential Access | Conti, BlackCat |
+| 10 | **T1082** | System Information Discovery | Discovery | Conti, REvil |
+| 11 | **T1083** | File and Directory Discovery | Discovery | LockBit, BlackCat |
+| 12 | **T1069.001** | Local Groups Discovery | Discovery | Conti, REvil |
+| 13 | **T1016** | Network Configuration Discovery | Discovery | LockBit, Conti |
+| 14 | **T1018** | Remote System Discovery | Discovery | Conti, REvil |
+| 15 | **T1550.002** | Pass-the-Hash Lateral Movement | Lateral Movement | REvil, Conti |
+| 16 | **T1071.001** | C2 Beacon over HTTP | Command & Control | Lazarus, REvil |
+| 17 | **T1048** | Exfiltration over Alternative Protocol | Exfiltration | BlackCat, LockBit |
+| 18 | **T1070.004** | File Deletion (Indicator Removal) | Defense Evasion | All major ransomware groups |
+| 19 | **T1490** | Volume Shadow Copy Deletion | Impact | All major ransomware groups |
+| 20 | **T1486** | File Encryption (XOR) | Impact | LockBit, BlackCat, REvil |
 
 ---
 
@@ -226,8 +239,8 @@ Backend:
   - Requests 2.x        # OpenSearch + Wazuh REST API queries
 
 Attack Execution:
-  - Atomic Red Team     # Invoke-AtomicTest, one command per MITRE technique
-  - Custom PowerShell   # XOR encryption fallback for T1486
+  - Custom PowerShell   # One crafted command per MITRE technique with janus markers
+  - Paramiko SSH        # Remote execution on the Windows target
 
 Security Monitoring:
   - Wazuh 4.7.5         # SIEM — collects and correlates events
@@ -264,25 +277,35 @@ git clone https://github.com/romeo-rm/janus.git
 cd janus
 
 # Install Python dependencies
-pip install flask flask-socketio paramiko requests urllib3 google-genai
+pip install -r requirements.txt
 ```
 
 ### Configuration
 
-Edit the top of `orchestrator.py`:
+Copy `.env.example` to `.env` and fill in your values:
 
-```python
-WAZUH_HOST  = "192.168.70.129"   # Your Wazuh manager IP
-WIN10_IP    = "192.168.70.150"   # Your Windows target IP
-WIN10_USER  = "your-username"    # SSH username
-WIN10_PASS  = "your-password"    # SSH password
-GEMINI_KEY  = "your-api-key"     # Google AI Studio → Get API Key
+```bash
+cp .env.example .env
+```
+
+```ini
+JANUS_WAZUH_HOST=192.168.10.133      # Your Wazuh manager IP
+JANUS_WAZUH_API_USER=wazuh-wui
+JANUS_WAZUH_API_PASS=your-api-pass
+JANUS_INDEXER_USER=admin
+JANUS_INDEXER_PASS=your-indexer-pass
+JANUS_WAZUH_SSH_USER=wazuh
+JANUS_WAZUH_SSH_PASS=your-ssh-pass
+JANUS_TARGET_HOST=192.168.10.134     # Your Windows target IP
+JANUS_TARGET_USER=target
+JANUS_TARGET_PASS=your-target-pass
+JANUS_GEMINI_KEY=your-api-key        # Google AI Studio → Get API Key
 ```
 
 ### Run
 
 ```bash
-sudo -E python3 orchestrator.py
+python3 orchestrator.py
 ```
 
 Open **`http://<your-wazuh-ip>:5000`** in a browser. You're live.
@@ -293,12 +316,11 @@ Open **`http://<your-wazuh-ip>:5000`** in a browser. You're live.
 
 | Control | What It Does |
 |---------|-------------|
-| **▶ Run Kill Chain** | Live execution — SSHes into target, runs all 7 techniques, queries Wazuh after each one |
-| **⚡ Demo Mode** | Replays cached results from the last real run — perfect for presentations |
-| **⬆ Implement Rule** | Deploys a Sigma rule for the selected gap — terminal overlay shows live deployment |
-| **⟳ Rescan Threat** | Re-runs the kill chain with all deployed rules active — proves gaps are closed |
+| **▶ Run Kill Chain** | Live execution — SSHes into target, runs all 20 techniques, queries Wazuh after each one |
+| **⬆ Implement Rule** | Deploys Wazuh detection rules for the selected gap — terminal overlay shows live SSH deployment |
+| **⟳ Rescan Missed** | Re-runs only the missed techniques with deployed rules active — proves gaps are closed |
 | **✦ AI Report** | Calls Gemini 2.5 Flash — full security report generated in ~30 seconds |
-| **↺ Reset** | Clears all state, scores, and logs — ready for a fresh run |
+| **↺ Reset** | Clears all run results and logs — ready for a fresh run |
 
 ---
 
@@ -307,27 +329,33 @@ Open **`http://<your-wazuh-ip>:5000`** in a browser. You're live.
 ```
 janus/
 │
-├── orchestrator.py        # 🧠 Core engine — Flask API, SocketIO, chain runner,
-│                          #    OpenSearch queries, Gemini report generation
+├── orchestrator.py        # 🧠 Core engine — Flask API, SocketIO, 20-technique chain
+│                          #    runner, SSH rule deployment, Wazuh Indexer queries,
+│                          #    Gemini report generation
 │
-├── dashboard.html         # 🖥️  Real-time SOC dashboard — kill chain animation,
-│                          #    score counter, Sigma cards, log feed, report modal
+├── dashboard.html         # 🖥️  Real-time SOC dashboard — kill chain pipeline animation,
+│                          #    score counter, Sigma gap cards, rule deploy terminal,
+│                          #    log feed, AI report modal
+│
+├── local_rules.xml        # 🔍 20 Wazuh detection rules with janus markers (IDs 100100–100119)
+│
+├── local_rules_weak.xml   # 🎯 Baseline ruleset with intentional gaps for T1055, T1486,
+│                          #    T1027, T1550.002, T1071.001 — used to demonstrate gap
+│                          #    detection and remediation flow
 │
 ├── navigator.py           # 🗺️  MITRE ATT&CK Navigator layer generator
-│                          #    + Sigma rule suggestion engine
 │
-├── wazuh_client.py        # 🔌 Wazuh REST API + OpenSearch query helpers
-│                          #    Token management, alert retrieval
+├── requirements.txt       # 📦 Python dependencies
+├── .env.example           # ⚙️  Configuration template (copy to .env and fill in values)
+├── OPERATIONS.md          # 📖 Runtime operations and maintenance guide
 │
-├── atomic_runner.py       # 💣 Atomic Red Team SSH wrapper
-│                          #    Fallback command handling for missing atomics
+├── sigma/                 # 📐 20 Sigma rules in YAML — one per ATT&CK technique
 │
-└── detection/             # 🔍 Per-technique detection modules
-    ├── powershell.py      #    T1059.001 — PowerShell execution detection
-    ├── mimikatz.py        #    T1003.001 — LSASS dump detection
-    ├── pth.py             #    T1550.002 — Pass-the-Hash detection
-    ├── shadow_copy.py     #    T1490 — vssadmin shadow deletion detection
-    └── ransomware.py      #    T1486 — file encryption detection
+├── deploy/
+│   └── janus.service      # 🚀 systemd unit file for production deployment
+│
+└── tests/
+    └── test_orchestrator.py  # ✅ Unit tests for detection correlation and rule deployment
 ```
 
 ---
